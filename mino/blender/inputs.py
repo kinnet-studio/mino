@@ -147,3 +147,30 @@ def get_rails(context, samples):
     else:
         a, b = curves
     return curve_rail(a, context, samples), curve_rail(b, context, samples)
+
+
+def order_sections(rails_by_name: dict, first: str) -> list[str]:
+    """Greedy nearest-centroid chain of section names starting at `first`."""
+    centroids = {name: np.asarray(pts, dtype=float).mean(axis=0) for name, (pts, _) in rails_by_name.items()}
+    ordered, remaining = [first], [n for n in rails_by_name if n != first]
+    while remaining:
+        last = centroids[ordered[-1]]
+        nxt = min(remaining, key=lambda n: float(np.linalg.norm(centroids[n] - last)))
+        ordered.append(nxt)
+        remaining.remove(nxt)
+    return ordered
+
+
+def get_sections(context, samples):
+    """Two rails from Edit Mode chains, or two or more curves ordered from the active one."""
+    obj = context.active_object
+    if context.mode == "EDIT_MESH" and obj is not None and obj.type == "MESH":
+        a, b = edit_mode_rails(obj)
+        return [a, b]
+    curves = [o for o in context.selected_objects if o.type == "CURVE"]
+    if len(curves) < 2:
+        raise LoftError(f"select at least two curve objects ({len(curves)} selected), "
+                        "or two edge chains in Edit Mode")
+    rails_by_name = {o.name: curve_rail(o, context, samples) for o in curves}
+    first = obj.name if obj in curves else curves[0].name
+    return [rails_by_name[name] for name in order_sections(rails_by_name, first)]

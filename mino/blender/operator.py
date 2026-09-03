@@ -7,11 +7,13 @@ from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProp
 
 from ..core import LoftError, LoftParams, format_report, loft
 from ..core.export import result_to_dict
-from . import inputs, output
+from ..core.strakes import chain_loft
+from . import inputs
+from .output import create_result_object
 
 
 class MINO_OT_loft(bpy.types.Operator):
-    """Loft a developable strip between two rail curves or edge chains"""
+    """Loft a developable strip between two or more rail curves, or two edge chains"""
     bl_idname = "mino.loft"
     bl_label = "Developable Loft (two rails)"
     bl_options = {"REGISTER", "UNDO"}
@@ -19,7 +21,7 @@ class MINO_OT_loft(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         if context.mode not in {"OBJECT", "EDIT_MESH"}:
-            cls.poll_message_set("Run in Object Mode with two curves selected, "
+            cls.poll_message_set("Run in Object Mode with two or more curves selected, "
                                   "or in Edit Mode with two edge chains selected")
             return False
         return True
@@ -46,6 +48,8 @@ class MINO_OT_loft(bpy.types.Operator):
                                                     "as a fraction of the mean ruling length")
     consistent_creases: BoolProperty(name="Consistent Creases", default=True,
                                      description="Use one crease direction per run of split quads")
+    diagnose: BoolProperty(name="Diagnose", default=True,
+                           description="Store ranked suggestions for non-developable regions on the result")
     export_json: StringProperty(name="Export JSON", default="", subtype="FILE_PATH",
                                 description="Optional path to write viewer JSON")
 
@@ -58,24 +62,35 @@ class MINO_OT_loft(bpy.types.Operator):
             consistent_creases=self.consistent_creases,
         )
         try:
-            (pa, ta), (pb, tb) = inputs.get_rails(context, params.samples)
-            result = loft(pa, pb, params, ta, tb)
+            sections = inputs.get_sections(context, params.samples)
+            results = chain_loft(sections, params)
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
-        output.create_strip_object(context, result, "Mino", params.twist_tolerance)
-        if self.export_json:
-            path = bpy.path.abspath(self.export_json)
-            try:
-                with open(path, "w", encoding="utf-8") as fh:
-                    json.dump(result_to_dict(result, pa, pb, "blender", params), fh)
-            except OSError as exc:
-                self.report({"WARNING"}, f"Could not write {path}: {exc}")
-        summary = format_report(result.report, result.failing_ranges)
-        self.report({"INFO"}, summary)
-        if result.failing_ranges:
-            ranges = ", ".join(f"{a}-{b}" if a != b else str(a) for a, b in result.failing_ranges)
-            self.report({"WARNING"}, f"Not developable at rulings {ranges}; split the panel there")
+        objs = []
+        for k, (((pa, ta), (pb, tb)), result) in enumerate(zip(zip(sections, sections[1:]), results)):
+            obj, diagnosis = create_result_object(context, "Mino", pa, ta, pb, tb, params, result,
+                                                  self.diagnose, strake=k)
+            objs.append(obj)
+        if len(results) == 1:
+            result = results[0]
+            (pa, ta), (pb, tb) = sections
+            if self.export_json:
+                path = bpy.path.abspath(self.export_json)
+                try:
+                    with open(path, "w", encoding="utf-8") as fh:
+                        json.dump(result_to_dict(result, pa, pb, "blender", params), fh)
+                except OSError as exc:
+                    self.report({"WARNING"}, f"Could not write {path}: {exc}")
+            self.report({"INFO"}, format_report(result.report, result.failing_ranges))
+            if result.failing_ranges:
+                ranges = ", ".join(f"{a}-{b}" if a != b else str(a) for a, b in result.failing_ranges)
+                self.report({"WARNING"}, f"Not developable at rulings {ranges}; see the Mino panel for suggestions")
+        else:
+            worst = max(r.report.max_twist for r in results)
+            bad = sum(1 for r in results if r.failing_ranges)
+            self.report({"INFO"}, f"Mino: {len(results)} strips, worst twist {worst:.1f} deg, "
+                                  f"{bad} not developable")
         return {"FINISHED"}
 
     def draw(self, context):
@@ -92,4 +107,5 @@ class MINO_OT_loft(bpy.types.Operator):
         col.prop(self, "planar_tolerance")
         col.prop(self, "planarize_max_nudge")
         col.prop(self, "consistent_creases")
+        col.prop(self, "diagnose")
         col.prop(self, "export_json")

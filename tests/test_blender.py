@@ -1,3 +1,4 @@
+import json
 import math
 
 import numpy as np
@@ -201,3 +202,59 @@ def test_operator_rejects_multi_spline_curve(fresh_scene):
     with pytest.raises(RuntimeError):
         bpy.ops.mino.loft(samples=20)
     assert "Mino" not in bpy.data.objects
+
+
+def test_loft_stores_inputs_and_diagnosis(fresh_scene):
+    a = _make_arc_curve("A", 1.0, 0.0)
+    b = _make_arc_curve("B", 1.0, 1.0)
+    _select([a, b], a)
+    assert bpy.ops.mino.loft(samples=30) == {"FINISHED"}
+    obj = bpy.data.objects["Mino"]
+    rails = json.loads(obj["mino_rails"])
+    assert set(rails) == {"a", "ta", "b", "tb"}
+    assert len(rails["a"]) >= 30 * 4 and len(rails["ta"]) == len(rails["a"])
+    params = json.loads(obj["mino_params"])
+    assert params["samples"] == 30 and params["consistent_creases"] is True
+    assert obj["mino_report"].startswith("Mino: 30 rulings")
+    diag = json.loads(obj["mino_diagnosis"])
+    assert [s["kind"] for s in diag["suggestions"]] == ["ok"]
+    assert "strake" in obj.data.attributes
+    assert all(d.value == 0 for d in obj.data.attributes["strake"].data)
+
+
+def test_loft_with_diagnose_off_stores_empty_diagnosis(fresh_scene):
+    a = _make_arc_curve("A", 1.0, 0.0)
+    b = _make_arc_curve("B", 1.0, 1.0)
+    _select([a, b], a)
+    assert bpy.ops.mino.loft(samples=20, diagnose=False) == {"FINISHED"}
+    assert bpy.data.objects["Mino"]["mino_diagnosis"] == ""
+
+
+def test_three_curves_chain_into_two_strips(fresh_scene):
+    a = _make_arc_curve("A", 1.0, 0.0)
+    b = _make_arc_curve("B", 1.0, 1.0)
+    c = _make_arc_curve("C", 1.0, 2.0)
+    _select([a, c, b], a)  # selection order deliberately scrambled
+    assert bpy.ops.mino.loft(samples=20) == {"FINISHED"}
+    first, second = bpy.data.objects["Mino"], bpy.data.objects["Mino.001"]
+    assert len(first.data.vertices) == 40 and len(second.data.vertices) == 40
+    assert {d.value for d in first.data.attributes["strake"].data} == {0}
+    assert {d.value for d in second.data.attributes["strake"].data} == {1}
+    r1, r2 = json.loads(first["mino_rails"]), json.loads(second["mino_rails"])
+    assert np.allclose(np.array(r1["b"]), np.array(r2["a"]))
+    # the middle curve (z = 1) is the shared rail
+    assert np.allclose(np.array(r1["b"])[:, 2], 1.0)
+
+
+def test_load_inputs_round_trip(fresh_scene):
+    from mino.blender.state import load_inputs, params_from_dict, params_to_dict
+    a = _make_arc_curve("A", 1.0, 0.0)
+    b = _make_arc_curve("B", 1.0, 1.0)
+    _select([a, b], a)
+    bpy.ops.mino.loft(samples=24, window=5)
+    pa, ta, pb, tb, params = load_inputs(bpy.data.objects["Mino"])
+    assert pa.shape[1] == 3 and ta.shape == pa.shape and pb.shape[1] == 3
+    assert params.samples == 24 and params.window == 5
+    assert params_from_dict({**params_to_dict(params), "bogus": 1}).window == 5
+    with pytest.raises(LoftError):
+        load_inputs(a)
