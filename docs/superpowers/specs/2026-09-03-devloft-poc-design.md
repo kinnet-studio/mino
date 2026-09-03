@@ -63,6 +63,7 @@ class LoftParams:
     planarize: bool = True
     planar_tolerance: float = 0.01  # relative diagonal offset, see 5.4
     planarize_iterations: int = 10
+    planarize_max_nudge: float = 0.05  # fraction of mean ruling length
 
 @dataclass
 class StripResult:
@@ -169,7 +170,11 @@ quad's best-fit plane through its centroid using the normal of the cross
 product of the diagonals, project its four vertices onto that plane, and
 accumulate the projected positions. Each vertex moves to the average of its
 proposals. Rail endpoints (`A[0]`, `A[N-1]`, `B[0]`, `B[N-1]`) are pinned.
-The pass stops early when the max planarity is below `planar_tolerance`.
+Each vertex's total displacement is capped at `planarize_max_nudge` times the
+mean ruling length (default 0.05), a separate parameter from
+`planar_tolerance` so the cap does not forbid the very move the pass needs.
+The pass stops early when the max planarity is below `planar_tolerance`. On a
+genuinely twisted strip it cannot flatten every quad; it is best effort.
 
 After planarization, any quad still above `planar_tolerance` is split into
 two triangles along the diagonal with the smaller dihedral angle between
@@ -179,14 +184,15 @@ the two resulting triangles. `face_split` records this.
 
 ### 5.5 Unfold check (`core/unfold.py`)
 
-A sequential flattening used for validation only. Triangulate every face
-temporarily, then lay triangles into 2D in strip order: the first triangle
-goes to the plane with one edge on the x axis, each next triangle shares an
-edge with the previous one and is placed by preserving its edge lengths.
-Because the strip is a chain, every triangle shares an edge with its
-predecessor. Return the 2D area. For a developable strip the unfolded area
-equals the 3D area; a large gap indicates faces that only flatten with
-distortion. This is a cheap stand-in for Unfolder's check.
+A sequential flattening used for validation only. Each face is treated as
+rigid: it is projected onto its own best-fit plane, then placed in 2D by
+aligning the ruling edge it shares with the previous face (rotation only).
+Because the strip is a chain, every face shares exactly one ruling with its
+predecessor. Return the 2D area and the per-face layout. Since quads over
+`planar_tolerance` are split before unfolding, the unfolded area matches the
+3D area within that tolerance by construction; the check confirms the
+emitted faces are flat enough to lay out rigidly. It does not detect 2D
+overlap of the flat pattern. Unfolder remains the real test.
 
 ### 5.6 Report (`core/report.py`)
 
@@ -234,7 +240,8 @@ selected curve is rail B.
 ### 6.2 Operator (`blender/operator.py`)
 
 `DEVLOFT_OT_loft`, label "Developable Loft (two rails)", registered in the
-Object and Edit Mode context menus under Add and in the DevLoft panel.
+3D Viewport Add menu, the Object Mode and Edit Mesh context menus, and the
+DevLoft panel.
 Properties mirror `LoftParams`:
 
 - `samples` int, 8..400, default 60
@@ -246,7 +253,7 @@ Properties mirror `LoftParams`:
 - `planarize` bool, default True
 - `planar_tolerance` float, 0..0.5, default 0.01
 
-`execute`:
+`execute` (no mode switching, so Adjust Last Operation can re-run it):
 1. `get_rails` -> two polylines with optional tangents.
 2. `core.loft(rail_a, rail_b, params)` -> `StripResult`.
 3. `output.create_strip_object(context, result, name="DevLoft")`.
@@ -264,16 +271,20 @@ Creates a new mesh object linked to the active collection, in world space
 
 - Face float attribute `twist` (degrees).
 - Face float attribute `planarity`.
-- Face color attribute `twist_color` (FLOAT_COLOR, domain FACE): green at
-  0, yellow at `twist_tolerance`, red at `2 * twist_tolerance` and above.
-  This makes failing regions visible in Solid shading with Color set to
-  Attribute, and survives export.
+- Color attribute `twist_color` (FLOAT_COLOR, domain CORNER, one value per
+  face corner so faces stay hard-edged): green at 0, yellow at
+  `twist_tolerance`, red at `2 * twist_tolerance` and above. Blender only
+  treats POINT and CORNER color attributes as color attributes, so FACE would
+  never appear in Solid shading. It is set as the active color so Solid
+  shading with Color set to Attribute shows it, and it survives export.
 - Face boolean attribute `split` marking triangulated quads.
 - Edges along rulings marked as seams is NOT done; seams belong to the
   user's unfolding decisions.
 
-The new object becomes active and selected; the input objects stay
-untouched.
+In Object Mode the new object becomes active and selected. In Edit Mode the
+operator does not switch modes: the new object is linked but the user stays
+in Edit Mode of the source mesh (switching modes inside a REGISTER/UNDO
+operator breaks redo). The input geometry stays untouched.
 
 ### 6.4 Panel (`blender/panel.py`)
 

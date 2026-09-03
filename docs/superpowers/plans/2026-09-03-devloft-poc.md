@@ -30,6 +30,7 @@ Deviations from the spec, decided while planning (keep the spec's intent):
 - `Report` gains a `twist_tolerance` field so `format_report` needs no extra argument.
 - No `bl_info` in the package; the manifest is authoritative. Legacy-add-on install is not supported.
 - A fourth test case, `offset_cylinder`, proves that the DP leans rulings when that removes twist.
+- Recorded after the final review (spec amended to match): `twist_color` lives on the CORNER domain, not FACE; the operator never switches modes (Edit Mode users stay in Edit Mode) so redo works; the planarize displacement cap is a separate `planarize_max_nudge` parameter (default 0.05 of mean ruling length); `unfold_strip` flattens whole faces by projection rather than triangulating; the operator is appended to the Add menu and both context menus.
 
 ---
 
