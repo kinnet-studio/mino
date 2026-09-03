@@ -65,6 +65,36 @@ def _make_arc_curve(name, radius, z, n=5):
     return obj
 
 
+def _make_poly_arc_curve(name, radius, z, n=12):
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    sp = cu.splines.new("POLY")
+    sp.points.add(n - 1)
+    for k in range(n):
+        th = k * math.pi / (n - 1)
+        x, y = radius * math.cos(th), radius * math.sin(th)
+        sp.points[k].co = (x, y, z, 1.0)
+    obj = bpy.data.objects.new(name, cu)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def _make_nurbs_arc_curve(name, radius, z, n=12):
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    sp = cu.splines.new("NURBS")
+    sp.points.add(n - 1)
+    for k in range(n):
+        th = k * math.pi / (n - 1)
+        x, y = radius * math.cos(th), radius * math.sin(th)
+        sp.points[k].co = (x, y, z, 1.0)
+    sp.use_endpoint_u = True
+    sp.order_u = 4
+    obj = bpy.data.objects.new(name, cu)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
 def _select(objs, active):
     for o in bpy.context.view_layer.objects:
         o.select_set(False)
@@ -131,4 +161,43 @@ def test_operator_errors_on_bad_selection(fresh_scene):
     _select([a], a)
     with pytest.raises(RuntimeError):
         bpy.ops.devloft.loft()
+    assert "DevLoft" not in bpy.data.objects
+
+
+def test_operator_on_poly_curves(fresh_scene):
+    a = _make_poly_arc_curve("A", 1.0, 0.0)
+    b = _make_poly_arc_curve("B", 1.0, 1.0)
+    _select([a, b], a)
+    result = bpy.ops.devloft.loft(samples=20)
+    assert result == {"FINISHED"}
+    obj = bpy.data.objects["DevLoft"]
+    me = obj.data
+    assert len(me.vertices) == 40
+    assert "twist" in me.attributes
+    twist = [d.value for d in me.attributes["twist"].data]
+    assert max(twist) < 1.0
+
+
+def test_operator_on_nurbs_curves(fresh_scene):
+    a = _make_nurbs_arc_curve("A", 1.0, 0.0)
+    b = _make_nurbs_arc_curve("B", 1.0, 1.0)
+    _select([a, b], a)
+    try:
+        result = bpy.ops.devloft.loft(samples=20)
+    except RuntimeError:
+        a.data.resolution_u = 12
+        b.data.resolution_u = 12
+        result = bpy.ops.devloft.loft(samples=20)
+    assert result == {"FINISHED"}
+    obj = bpy.data.objects["DevLoft"]
+    assert len(obj.data.vertices) == 40
+
+
+def test_operator_rejects_multi_spline_curve(fresh_scene):
+    a = _make_poly_arc_curve("A", 1.0, 0.0)
+    b = _make_poly_arc_curve("B", 1.0, 1.0)
+    a.data.splines.new("POLY")
+    _select([a, b], a)
+    with pytest.raises(RuntimeError):
+        bpy.ops.devloft.loft(samples=20)
     assert "DevLoft" not in bpy.data.objects
