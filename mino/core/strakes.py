@@ -17,12 +17,18 @@ def mid_rails(rail_a: Rail, rail_b: Rail, rulings, count: int) -> list[np.ndarra
 
 
 def chain_loft(sections, params: LoftParams) -> list[StripResult]:
-    """Loft each consecutive pair of (points, tangents) sections."""
+    """Loft each consecutive pair of (points, tangents) sections.
+
+    Shared rails (mid-rails between strakes) are pinned in both strips that share them,
+    so only outer rails A and B may be nudged by planarization.
+    """
     if len(sections) < 2:
         raise LoftError("need at least two sections to loft")
     strips = []
-    for (pa, ta), (pb, tb) in zip(sections, sections[1:]):
-        strips.append(loft(pa, pb, params, ta, tb))
+    for k, ((pa, ta), (pb, tb)) in enumerate(zip(sections, sections[1:])):
+        pin_a = k > 0
+        pin_b = k < len(sections) - 2
+        strips.append(loft(pa, pb, params, ta, tb, pin_a=pin_a, pin_b=pin_b))
     return strips
 
 

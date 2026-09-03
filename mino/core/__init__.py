@@ -16,7 +16,7 @@ __all__ = ["LoftError", "LoftParams", "Rail", "Report", "StripResult", "loft", "
 
 
 def loft(points_a, points_b, params: LoftParams | None = None,
-         tangents_a=None, tangents_b=None) -> StripResult:
+         tangents_a=None, tangents_b=None, *, pin_a: bool = False, pin_b: bool = False) -> StripResult:
     params = params or LoftParams()
     n = params.samples
     rail_a, rail_b = prepare_rails(points_a, points_b, n, tangents_a, tangents_b)
@@ -33,7 +33,12 @@ def loft(points_a, points_b, params: LoftParams | None = None,
     if params.planarize:
         lengths = [np.linalg.norm(verts[n + j] - verts[i]) for i, j in path]
         max_nudge = params.planarize_max_nudge * float(np.mean(lengths))
-        verts = planarize(verts, faces, pinned=[0, n - 1, n, 2 * n - 1],
+        pinned = [0, n - 1, n, 2 * n - 1]
+        if pin_a:
+            pinned += list(range(0, n))
+        if pin_b:
+            pinned += list(range(n, 2 * n))
+        verts = planarize(verts, faces, pinned=pinned,
                           tolerance=params.planar_tolerance,
                           iterations=params.planarize_iterations, max_nudge=max_nudge)
 

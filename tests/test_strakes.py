@@ -66,7 +66,7 @@ def test_find_strake_count_reports_failure_when_capped():
 
 def test_chain_loft_shares_rails():
     case = CASES["cylinder"]()
-    params = LoftParams(planarize=False)
+    params = LoftParams()
     n = params.samples
     mid = case["points_a"].copy()
     mid[:, 2] = 0.5
@@ -92,3 +92,22 @@ def test_chain_loft_and_subdivide_reject_bad_input():
         chain_loft([(case["points_a"], None)], params)
     with pytest.raises(LoftError):
         subdivide(case["points_a"], case["points_b"], None, None, params, res.rulings, strakes=1)
+
+
+def test_subdivide_strips_share_rails_with_planarize_on():
+    case, params, res = _twisted()
+    strips = subdivide(case["points_a"], case["points_b"], case["tangents_a"], case["tangents_b"],
+                       params, res.rulings, strakes=3)
+    n = params.samples
+    for left, right in zip(strips, strips[1:]):
+        assert np.allclose(left.verts[n:], right.verts[:n], atol=1e-12)
+
+
+def test_loft_pins_whole_rails_when_asked():
+    case, params, res = _twisted(samples=24)
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples, case["tangents_a"], case["tangents_b"])
+    pinned = loft(case["points_a"], case["points_b"], params, case["tangents_a"], case["tangents_b"], pin_a=True, pin_b=True)
+    n = params.samples
+    assert np.allclose(pinned.verts[:n], ra.points) and np.allclose(pinned.verts[n:], rb.points)
+    free = loft(case["points_a"], case["points_b"], params, case["tangents_a"], case["tangents_b"])
+    assert not np.allclose(free.verts[:n], ra.points)
