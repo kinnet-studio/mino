@@ -2076,7 +2076,9 @@ def test_operator_on_edit_mode_chains(fresh_scene):
 def test_operator_errors_on_bad_selection(fresh_scene):
     a = _make_arc_curve("A", 1.0, 0.0)
     _select([a], a)
-    assert bpy.ops.devloft.loft() == {"CANCELLED"}
+    # bpy.ops raises when an operator reports {'ERROR'} and returns {'CANCELLED'}
+    with pytest.raises(RuntimeError):
+        bpy.ops.devloft.loft()
     assert "DevLoft" not in bpy.data.objects
 ```
 
