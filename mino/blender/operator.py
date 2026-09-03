@@ -44,6 +44,8 @@ class MINO_OT_loft(bpy.types.Operator):
     planarize_max_nudge: FloatProperty(name="Max Nudge", default=0.05, min=0.0, max=0.5,
                                        description="Cap on vertex movement during planarize, "
                                                     "as a fraction of the mean ruling length")
+    consistent_creases: BoolProperty(name="Consistent Creases", default=True,
+                                     description="Use one crease direction per run of split quads")
     export_json: StringProperty(name="Export JSON", default="", subtype="FILE_PATH",
                                 description="Optional path to write viewer JSON")
 
@@ -53,6 +55,7 @@ class MINO_OT_loft(bpy.types.Operator):
             tie_breaker=self.tie_breaker, tie_weight=self.tie_weight,
             plane_normal=tuple(self.plane_normal), planarize=self.planarize,
             planar_tolerance=self.planar_tolerance, planarize_max_nudge=self.planarize_max_nudge,
+            consistent_creases=self.consistent_creases,
         )
         try:
             (pa, ta), (pb, tb) = inputs.get_rails(context, params.samples)
@@ -88,4 +91,5 @@ class MINO_OT_loft(bpy.types.Operator):
         col.prop(self, "planarize")
         col.prop(self, "planar_tolerance")
         col.prop(self, "planarize_max_nudge")
+        col.prop(self, "consistent_creases")
         col.prop(self, "export_json")

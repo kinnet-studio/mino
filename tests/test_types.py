@@ -21,3 +21,7 @@ def test_rail_holds_arrays():
 
 def test_loft_error_is_exception():
     assert issubclass(LoftError, Exception)
+
+
+def test_consistent_creases_default():
+    assert LoftParams().consistent_creases is True

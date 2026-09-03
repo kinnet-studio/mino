@@ -23,6 +23,7 @@ class LoftParams:
     planar_tolerance: float = 0.01
     planarize_iterations: int = 10
     planarize_max_nudge: float = 0.05
+    consistent_creases: bool = True
 
 
 @dataclass

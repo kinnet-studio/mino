@@ -38,7 +38,8 @@ def loft(points_a, points_b, params: LoftParams | None = None,
                           iterations=params.planarize_iterations, max_nudge=max_nudge)
 
     planarity = face_planarity(verts, faces)
-    out_faces, src, split = split_quads(verts, faces, planarity, params.planar_tolerance)
+    out_faces, src, split = split_quads(verts, faces, planarity, params.planar_tolerance,
+                                        consistent=params.consistent_creases)
     quad_count = sum(1 for f in faces if len(f) == 4)
     split_quad_count = int(split.sum() // 2)
 

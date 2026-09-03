@@ -121,3 +121,26 @@ def test_result_to_dict_is_json_serializable():
     assert back["report"]["ruling_count"] == len(res.rulings)
     assert back["params"]["samples"] == 12
     assert len(back["rails"]["a"]) == len(case["points_a"])
+
+
+def test_consistent_creases_on_twisted_strip():
+    _, params, res = _run("twisted", samples=24, planarize=False, consistent_creases=True)
+    n = params.samples
+    k = 0
+    orientations = []
+    run = []
+    while k < len(res.faces):
+        if res.face_split[k]:
+            first = res.faces[k]
+            run.append("A" if sum(v < n for v in first) == 1 else "B")
+            k += 2
+        else:
+            if run:
+                orientations.append(run)
+                run = []
+            k += 1
+    if run:
+        orientations.append(run)
+    assert orientations
+    for r in orientations:
+        assert len(set(r)) == 1

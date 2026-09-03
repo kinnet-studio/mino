@@ -86,6 +86,16 @@ def _dihedral(verts, tris):
     return float(np.degrees(np.arccos(np.clip(np.dot(n0, n1), -1.0, 1.0))))
 
 
+def _option_a(face):
+    v0, v1, v2, v3 = face
+    return [(v0, v2, v3), (v0, v1, v2)]
+
+
+def _option_b(face):
+    v0, v1, v2, v3 = face
+    return [(v0, v1, v3), (v1, v2, v3)]
+
+
 def best_diagonal(verts, face):
     """Pick the flatter diagonal of a strip quad `(v0, v1, v2, v3) = (A[i], A[i+1], B[j+1], B[j])`.
 
@@ -94,17 +104,38 @@ def best_diagonal(verts, face):
     `(v1, v2)`, so consecutive faces in the strip keep sharing an edge after
     a split. Winding stays consistent between the two options.
     """
-    v0, v1, v2, v3 = face
-    opt_a = [(v0, v2, v3), (v0, v1, v2)]
-    opt_b = [(v0, v1, v3), (v1, v2, v3)]
+    opt_a, opt_b = _option_a(face), _option_b(face)
     return opt_a if _dihedral(verts, opt_a) <= _dihedral(verts, opt_b) else opt_b
 
 
-def split_quads(verts, faces, planarity, tolerance):
+def _consistent_choices(verts, faces, needs_split):
+    """One diagonal orientation per run of consecutive split quads."""
+    choice = {}
+    k = 0
+    while k < len(faces):
+        if not needs_split[k]:
+            k += 1
+            continue
+        run = [k]
+        while k + 1 < len(faces) and needs_split[k + 1]:
+            k += 1
+            run.append(k)
+        cost_a = sum(_dihedral(verts, _option_a(faces[q])) for q in run)
+        cost_b = sum(_dihedral(verts, _option_b(faces[q])) for q in run)
+        pick = _option_a if cost_a <= cost_b else _option_b
+        for q in run:
+            choice[q] = pick(faces[q])
+        k += 1
+    return choice
+
+
+def split_quads(verts, faces, planarity, tolerance, consistent=False):
+    needs_split = [len(f) == 4 and planarity[k] > tolerance for k, f in enumerate(faces)]
+    choice = _consistent_choices(verts, faces, needs_split) if consistent else {}
     out, src, split = [], [], []
     for k, f in enumerate(faces):
-        if len(f) == 4 and planarity[k] > tolerance:
-            out.extend(best_diagonal(verts, f))
+        if needs_split[k]:
+            out.extend(choice.get(k) or best_diagonal(verts, f))
             src.extend([k, k])
             split.extend([True, True])
         else:
