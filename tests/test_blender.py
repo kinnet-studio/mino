@@ -88,6 +88,17 @@ def test_operator_on_curves(fresh_scene):
     twist = [d.value for d in me.attributes["twist"].data]
     assert max(twist) < 1.0
     assert bpy.context.view_layer.objects.active == obj
+    assert me.color_attributes.active_color is not None
+    assert me.color_attributes.active_color.name == "twist_color"
+    assert me.attributes["twist_color"].domain == "CORNER"
+    corner_colors = np.array([tuple(d.color) for d in me.attributes["twist_color"].data])
+    assert corner_colors.shape == (sum(len(p.loop_indices) for p in me.polygons), 4)
+    # every corner of a zero-twist cylinder face is the green end of the ramp
+    assert np.allclose(corner_colors[:, 1], 0.8, atol=0.05) and np.all(corner_colors[:, 0] < 0.3)
+    planarity = [d.value for d in me.attributes["planarity"].data]
+    assert all(0.0 <= v <= 1.0 for v in planarity)
+    split = [d.value for d in me.attributes["split"].data]
+    assert set(split) <= {True, False} and not any(split)
 
 
 def test_operator_on_edit_mode_chains(fresh_scene):

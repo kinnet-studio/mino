@@ -27,14 +27,24 @@ def create_strip_object(context, result, name, twist_tolerance):
     me.update()
 
     twist = me.attributes.new("twist", "FLOAT", "FACE")
+    # 90.0 is a defensive sentinel for non-finite twist; the DP alignment
+    # only ever enters finite-cost cells, so face_twist can never actually
+    # be inf here, but foreach_set requires a finite float32 array.
     twist.data.foreach_set("value", np.where(np.isfinite(result.face_twist), result.face_twist, 90.0).astype(np.float32))
     plan = me.attributes.new("planarity", "FLOAT", "FACE")
     plan.data.foreach_set("value", result.face_planarity.astype(np.float32))
-    col = me.attributes.new("twist_color", "FLOAT_COLOR", "FACE")
-    col.data.foreach_set("color", twist_colors(result.face_twist, twist_tolerance).astype(np.float32).ravel())
+    # Blender only surfaces POINT/CORNER FLOAT_COLOR attributes in
+    # mesh.color_attributes (and therefore in Solid shading's Color >
+    # Attribute dropdown); a FACE-domain color attribute is invisible there.
+    # me.update() above has already built me.polygons, so loop_indices exist.
+    col = me.attributes.new("twist_color", "FLOAT_COLOR", "CORNER")
+    face_colors = twist_colors(result.face_twist, twist_tolerance)
+    corner_colors = np.repeat(face_colors, [len(p.loop_indices) for p in me.polygons], axis=0)
+    col.data.foreach_set("color", corner_colors.astype(np.float32).ravel())
     split = me.attributes.new("split", "BOOLEAN", "FACE")
     split.data.foreach_set("value", result.face_split.astype(bool))
     me.color_attributes.active_color = col
+    me.color_attributes.render_color_index = me.color_attributes.active_color_index
     me.update()
 
     obj = bpy.data.objects.new(name, me)
