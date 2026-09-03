@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DevLoft viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; font: 13px/1.4 -apple-system, system-ui, sans-serif; background: #1e1e22; color: #ddd; }
+  #app { display: flex; height: 100%; }
+  #sidebar { width: 320px; padding: 12px; box-sizing: border-box; overflow-y: auto; background: #26262b; border-right: 1px solid #333; }
+  #view { flex: 1; position: relative; }
+  #view canvas { display: block; }
+  h1 { font-size: 15px; margin: 0 0 10px; }
+  h2 { font-size: 12px; margin: 14px 0 6px; color: #aaa; text-transform: uppercase; letter-spacing: .04em; }
+  button { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 5px 8px; background: #333; color: #ddd; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
+  button.active { background: #4a6cf7; border-color: #4a6cf7; color: #fff; }
+  label { display: block; margin: 3px 0; }
+  #legend { height: 12px; border-radius: 3px; background: linear-gradient(90deg, #22cc44, #ffdd22 50%, #ee2222); }
+  #legend-labels { display: flex; justify-content: space-between; color: #aaa; font-size: 11px; }
+  pre { white-space: pre-wrap; background: #1a1a1e; padding: 8px; border-radius: 4px; font-size: 11px; }
+  #flat { width: 100%; background: #1a1a1e; border-radius: 4px; }
+  input[type=file] { width: 100%; font-size: 11px; }
+  .hint { color: #888; font-size: 11px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="data.js"></script>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h1>DevLoft viewer</h1>
+    <h2>Cases</h2>
+    <div id="cases"></div>
+    <input type="file" id="file" accept=".json">
+    <p class="hint">Drag to orbit, shift-drag or right-drag to pan, wheel to zoom.</p>
+    <h2>Show</h2>
+    <label><input type="checkbox" id="showFaces" checked> faces (colored by twist)</label>
+    <label><input type="checkbox" id="showWire" checked> wireframe</label>
+    <label><input type="checkbox" id="showRulings" checked> rulings</label>
+    <label><input type="checkbox" id="showRails" checked> input rails</label>
+    <h2>Twist legend</h2>
+    <div id="legend"></div>
+    <div id="legend-labels"><span>0</span><span id="legend-mid">tol</span><span id="legend-max">2 tol</span></div>
+    <h2>Report</h2>
+    <pre id="report"></pre>
+    <h2>Flat pattern</h2>
+    <canvas id="flat" width="296" height="220"></canvas>
+  </div>
+  <div id="view"></div>
+</div>
+<script>
+(function () {
+  if (typeof THREE === 'undefined') {
+    document.getElementById('view').innerHTML = '<p style="padding:20px">three.js failed to load (offline?).</p>';
+    return;
+  }
+  const cases = (window.DEVLOFT_CASES || []).slice();
+  const view = document.getElementById('view');
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  view.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1e1e22);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.7);
+  sun.position.set(2, 4, 3);
+  scene.add(sun);
+  scene.add(new THREE.GridHelper(4, 8, 0x444444, 0x333333));
+
+  // Blender is Z-up, three.js is Y-up.
+  const toThree = p => [p[0], p[2], -p[1]];
+
+  const orbit = { theta: 0.8, phi: 1.05, dist: 5, target: new THREE.Vector3() };
+  function updateCamera() {
+    const { theta, phi, dist, target } = orbit;
+    camera.position.set(
+      target.x + dist * Math.sin(phi) * Math.cos(theta),
+      target.y + dist * Math.cos(phi),
+      target.z + dist * Math.sin(phi) * Math.sin(theta));
+    camera.lookAt(target);
+  }
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', () => { resize(); render(); });
+
+  let drag = null;
+  const el = renderer.domElement;
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; });
+  window.addEventListener('mouseup', () => { drag = null; });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+      const k = orbit.dist * 0.0015;
+      orbit.target.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+    } else {
+      orbit.theta += dx * 0.006;
+      orbit.phi = Math.min(Math.PI - 0.05, Math.max(0.05, orbit.phi + dy * 0.006));
+    }
+    updateCamera(); render();
+  });
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    orbit.dist *= Math.exp(e.deltaY * 0.001);
+    updateCamera(); render();
+  }, { passive: false });
+
+  function colorFor(twist, tol) {
+    if (twist === null || twist === undefined) return [1, 0, 1];
+    const t = twist / tol;
+    const g = [0.13, 0.8, 0.27], y = [1, 0.87, 0.13], r = [0.93, 0.13, 0.13];
+    const mix = (a, b, s) => a.map((v, i) => v + (b[i] - v) * s);
+    if (t <= 1) return mix(g, y, t);
+    return mix(y, r, Math.min(1, t - 1));
+  }
+
+  let group = null;
+  let layers = {};
+  function buildCase(c) {
+    if (group) scene.remove(group);
+    group = new THREE.Group();
+    layers = {};
+    const tol = c.params.twist_tolerance;
+    const pos = [], col = [], wire = [];
+    c.faces.forEach((f, k) => {
+      const rgb = colorFor(c.face_twist[k], tol);
+      const tris = f.length === 4 ? [[f[0], f[1], f[2]], [f[0], f[2], f[3]]] : [f];
+      tris.forEach(t => t.forEach(vi => { pos.push(...toThree(c.verts[vi])); col.push(...rgb); }));
+      for (let e = 0; e < f.length; e++) {
+        wire.push(...toThree(c.verts[f[e]]), ...toThree(c.verts[f[(e + 1) % f.length]]));
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geom.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geom.computeVertexNormals();
+    layers.faces = new THREE.Mesh(geom, new THREE.MeshLambertMaterial({
+      vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+    const wgeom = new THREE.BufferGeometry();
+    wgeom.setAttribute('position', new THREE.Float32BufferAttribute(wire, 3));
+    layers.wire = new THREE.LineSegments(wgeom, new THREE.LineBasicMaterial({ color: 0x111111 }));
+
+    const n = c.params.samples;
+    const rp = [], rc = [];
+    c.rulings.forEach(([i, j], k) => {
+      const rgb = colorFor(c.ruling_twist[k], tol);
+      rp.push(...toThree(c.verts[i]), ...toThree(c.verts[n + j]));
+      rc.push(...rgb, ...rgb);
+    });
+    const rgeom = new THREE.BufferGeometry();
+    rgeom.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3));
+    rgeom.setAttribute('color', new THREE.Float32BufferAttribute(rc, 3));
+    layers.rulings = new THREE.LineSegments(rgeom, new THREE.LineBasicMaterial({ vertexColors: true }));
+
+    const rails = new THREE.Group();
+    [c.rails.a, c.rails.b].forEach((pts, idx) => {
+      const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...toThree(p))));
+      const tube = new THREE.TubeGeometry(curve, Math.max(8, pts.length), 0.006 * orbitScale(c), 6, false);
+      rails.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ color: idx === 0 ? 0x66aaff : 0xffaa66 })));
+    });
+    layers.rails = rails;
+
+    Object.values(layers).forEach(o => group.add(o));
+    scene.add(group);
+    fitCamera(c);
+    applyVisibility();
+    document.getElementById('legend-mid').textContent = tol.toFixed(1) + '°';
+    document.getElementById('legend-max').textContent = (2 * tol).toFixed(1) + '°+';
+    document.getElementById('report').textContent = reportText(c);
+    drawFlat(c);
+    render();
+  }
+  function orbitScale(c) {
+    const b = new THREE.Box3();
+    c.verts.forEach(p => b.expandByPoint(new THREE.Vector3(...toThree(p))));
+    return b.getSize(new THREE.Vector3()).length() || 1;
+  }
+  function fitCamera(c) {
+    const b = new THREE.Box3();
+    c.verts.forEach(p => b.expandByPoint(new THREE.Vector3(...toThree(p))));
+    b.getCenter(orbit.target);
+    orbit.dist = b.getSize(new THREE.Vector3()).length() * 1.4 || 5;
+    updateCamera();
+  }
+  function reportText(c) {
+    const r = c.report;
+    const fmt = v => (v === null ? 'inf' : Number(v).toFixed(2));
+    const ranges = c.failing_ranges.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(', ') || 'none';
+    return [
+      `${c.name}`,
+      `samples ${c.params.samples}, window ${c.params.window}, tolerance ${c.params.twist_tolerance}°`,
+      `rulings: ${r.ruling_count}`,
+      `max twist: ${fmt(r.max_twist)}°   mean: ${fmt(r.mean_twist)}°`,
+      `failing rulings: ${r.failing_ruling_count}  at ${ranges}`,
+      `quads split: ${r.split_quad_count}/${r.quad_count}`,
+      `area 3D: ${fmt(r.area_3d)}   unfolded: ${fmt(r.area_unfolded)}`,
+    ].join('\n');
+  }
+  function drawFlat(c) {
+    const cv = document.getElementById('flat');
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!c.layout.length) return;
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    c.layout.forEach(poly => poly.forEach(([x, y]) => {
+      minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y);
+    }));
+    const pad = 8;
+    const s = Math.min((cv.width - 2 * pad) / (maxx - minx || 1), (cv.height - 2 * pad) / (maxy - miny || 1));
+    const ox = pad + ((cv.width - 2 * pad) - s * (maxx - minx)) / 2;
+    const oy = pad + ((cv.height - 2 * pad) - s * (maxy - miny)) / 2;
+    const tol = c.params.twist_tolerance;
+    c.layout.forEach((poly, k) => {
+      const [r, g, b] = colorFor(c.face_twist[k], tol).map(v => Math.round(v * 255));
+      ctx.beginPath();
+      poly.forEach(([x, y], i) => {
+        const px = ox + (x - minx) * s, py = cv.height - (oy + (y - miny) * s);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fill();
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+    });
+  }
+  function applyVisibility() {
+    if (!layers.faces) return;
+    layers.faces.visible = document.getElementById('showFaces').checked;
+    layers.wire.visible = document.getElementById('showWire').checked;
+    layers.rulings.visible = document.getElementById('showRulings').checked;
+    layers.rails.visible = document.getElementById('showRails').checked;
+  }
+  ['showFaces', 'showWire', 'showRulings', 'showRails'].forEach(id =>
+    document.getElementById(id).addEventListener('change', () => { applyVisibility(); render(); }));
+
+  function render() { renderer.render(scene, camera); }
+
+  function rebuildButtons(activeIdx) {
+    const box = document.getElementById('cases');
+    box.innerHTML = '';
+    cases.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.textContent = c.name;
+      if (i === activeIdx) b.classList.add('active');
+      b.onclick = () => { rebuildButtons(i); buildCase(c); };
+      box.appendChild(b);
+    });
+  }
+  document.getElementById('file').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        data.name = data.name || f.name;
+        cases.push(data);
+        rebuildButtons(cases.length - 1);
+        buildCase(data);
+      } catch (err) {
+        alert('Could not read JSON: ' + err.message);
+      }
+    };
+    reader.readAsText(f);
+  });
+
+  resize();
+  if (cases.length) { rebuildButtons(0); buildCase(cases[0]); } else { render(); }
+})();
+</script>
+</body>
+</html>
