@@ -22,8 +22,9 @@ To see the twist colors: Solid shading > Color > Attribute.
 - Window: how far a ruling may lean, in samples.
 - Twist Tolerance: degrees; rulings above it are flagged and colored.
 - Tie Breaker: none, shortest ruling, or plane direction, with a weight.
-- Planarize: nudge vertices so near-planar quads become exactly planar.
+- Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it.
 - Planar Tolerance: quads still above it are split into two triangles.
+- Max Nudge: cap on vertex movement during planarize, as a fraction of the mean ruling length.
 - Export JSON: optional path; drop the file on `tools/viewer/index.html`.
 
 ## Develop

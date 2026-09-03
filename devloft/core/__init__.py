@@ -32,7 +32,7 @@ def loft(points_a, points_b, params: LoftParams | None = None,
 
     if params.planarize:
         lengths = [np.linalg.norm(verts[n + j] - verts[i]) for i, j in path]
-        max_nudge = params.planar_tolerance * float(np.mean(lengths))
+        max_nudge = params.planarize_max_nudge * float(np.mean(lengths))
         verts = planarize(verts, faces, pinned=[0, n - 1, n, 2 * n - 1],
                           tolerance=params.planar_tolerance,
                           iterations=params.planarize_iterations, max_nudge=max_nudge)

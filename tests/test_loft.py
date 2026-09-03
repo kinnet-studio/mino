@@ -88,6 +88,16 @@ def test_planarize_keeps_rail_endpoints():
     assert np.allclose(res.verts[2 * n - 1], case["points_b"][-1])
 
 
+def test_planarize_reduces_splits_on_twisted_strip():
+    off = _run("twisted", planarize=False)[2]
+    on = _run("twisted", planarize=True)[2]
+    assert on.report.split_quad_count < off.report.split_quad_count
+    n = 60
+    moved = np.linalg.norm(on.verts - off.verts, axis=1)
+    mean_ruling = np.mean([np.linalg.norm(off.verts[n + j] - off.verts[i]) for i, j in off.rulings])
+    assert moved.max() <= 0.05 * mean_ruling + 1e-9
+
+
 def test_tie_breakers_run():
     for mode in ("shortest", "plane"):
         _, _, res = _run("cylinder", tie_breaker=mode, tie_weight=1.0)

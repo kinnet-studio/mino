@@ -33,6 +33,9 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
                             description="Nudge vertices so near-planar quads become planar")
     planar_tolerance: FloatProperty(name="Planar Tolerance", default=0.01, min=0.0, max=0.5,
                                     description="Relative diagonal offset; quads above this are split")
+    planarize_max_nudge: FloatProperty(name="Max Nudge", default=0.05, min=0.0, max=0.5,
+                                       description="Cap on vertex movement during planarize, "
+                                                    "as a fraction of the mean ruling length")
     export_json: StringProperty(name="Export JSON", default="", subtype="FILE_PATH",
                                 description="Optional path to write viewer JSON")
 
@@ -41,7 +44,7 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
             samples=self.samples, window=self.window, twist_tolerance=self.twist_tolerance,
             tie_breaker=self.tie_breaker, tie_weight=self.tie_weight,
             plane_normal=tuple(self.plane_normal), planarize=self.planarize,
-            planar_tolerance=self.planar_tolerance,
+            planar_tolerance=self.planar_tolerance, planarize_max_nudge=self.planarize_max_nudge,
         )
         try:
             (pa, ta), (pb, tb) = inputs.get_rails(context, params.samples)
@@ -75,4 +78,5 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
             col.prop(self, "plane_normal")
         col.prop(self, "planarize")
         col.prop(self, "planar_tolerance")
+        col.prop(self, "planarize_max_nudge")
         col.prop(self, "export_json")
