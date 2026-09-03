@@ -1,8 +1,8 @@
 import bpy
 
-from . import operator, panel
+from . import operator, panel, remedies
 
-_classes = (operator.MINO_OT_loft, panel.MINO_PT_panel)
+_classes = (operator.MINO_OT_loft, *remedies.classes, panel.MINO_PT_panel)
 
 
 def _menu(self, context):

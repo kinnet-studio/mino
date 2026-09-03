@@ -86,3 +86,28 @@ def create_result_object(context, name, points_a, tangents_a, points_b, tangents
         diagnosis = diagnose(points_a, points_b, tangents_a, tangents_b, params, result)
     store_inputs(obj, points_a, tangents_a, points_b, tangents_b, params, result, diagnosis)
     return obj, diagnosis
+
+
+def create_dart_object(context, dart, name, twist_tolerance):
+    """Refined mesh with the cut ruling marked as seams (attribute and use_seam)."""
+    import bpy
+
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(dart.verts.tolist(), [list(map(int, e)) for e in dart.seam_edges],
+                   [list(map(int, f)) for f in dart.faces])
+    me.validate()
+    me.update()
+    _write_twist_attributes(me, dart.face_twist, twist_tolerance)
+    by_key = {tuple(sorted(e.vertices)): e.index for e in me.edges}
+    flags = [False] * len(me.edges)
+    for a, b in dart.seam_edges:
+        idx = by_key.get(tuple(sorted((int(a), int(b)))))
+        if idx is not None:
+            flags[idx] = True
+            me.edges[idx].use_seam = True
+    seam = me.attributes.new("seam", "BOOLEAN", "EDGE")
+    seam.data.foreach_set("value", flags)
+    me.update()
+    obj = bpy.data.objects.new(name, me)
+    _link_and_select(context, obj)
+    return obj

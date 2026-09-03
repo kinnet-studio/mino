@@ -32,6 +32,23 @@ To see the twist colors: Solid shading > Color > Attribute.
 - Max Nudge: cap on vertex movement during planarize, as a fraction of the mean ruling length.
 - Export JSON: optional path; open `tools/viewer/index.html` and load the file with the Choose File button.
 
+## When a loft is not developable
+
+Select the Mino result. The sidebar shows a Diagnosis with ranked
+suggestions and a button for each:
+
+- Re-loft with a larger Window when leaning rulings alone fix it.
+- Subdivide into N strakes: mid-rails on the chosen rulings, one object
+  per strip, each developable within tolerance.
+- Cut a gusset (or dart): a refined mesh with a seam along the worst
+  ruling and the wedge angle you should expect in the flat pattern. A
+  ruled surface has non-positive curvature, so this is normally a gusset.
+- Creases: with Consistent Creases on, split diagonals run in one
+  direction per run.
+
+Every remedy creates new objects next to the original. Selecting more than
+two curves lofts them in order as a chain of strips.
+
 ## Develop
 
     uv sync
