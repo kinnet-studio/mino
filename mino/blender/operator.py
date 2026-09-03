@@ -5,7 +5,7 @@ import json
 import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, StringProperty
 
-from ..core import LoftError, LoftParams, format_report, loft
+from ..core import LoftError, LoftParams, format_report
 from ..core.export import result_to_dict
 from ..core.strakes import chain_loft
 from . import inputs
@@ -67,11 +67,15 @@ class MINO_OT_loft(bpy.types.Operator):
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
-        objs = []
+        created = []
         for k, (((pa, ta), (pb, tb)), result) in enumerate(zip(zip(sections, sections[1:]), results)):
             obj, diagnosis = create_result_object(context, "Mino", pa, ta, pb, tb, params, result,
                                                   self.diagnose, strake=k)
-            objs.append(obj)
+            created.append(obj)
+        if context.mode == "OBJECT":
+            for obj in created:
+                obj.select_set(True)
+            context.view_layer.objects.active = created[0]
         if len(results) == 1:
             result = results[0]
             (pa, ta), (pb, tb) = sections
@@ -91,6 +95,8 @@ class MINO_OT_loft(bpy.types.Operator):
             bad = sum(1 for r in results if r.failing_ranges)
             self.report({"INFO"}, f"Mino: {len(results)} strips, worst twist {worst:.1f} deg, "
                                   f"{bad} not developable")
+            if self.export_json:
+                self.report({"WARNING"}, "Export JSON is written for single strips only")
         return {"FINISHED"}
 
     def draw(self, context):

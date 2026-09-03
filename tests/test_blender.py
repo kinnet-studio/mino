@@ -244,6 +244,8 @@ def test_three_curves_chain_into_two_strips(fresh_scene):
     assert np.allclose(np.array(r1["b"]), np.array(r2["a"]))
     # the middle curve (z = 1) is the shared rail
     assert np.allclose(np.array(r1["b"])[:, 2], 1.0)
+    assert bpy.data.objects["Mino"].select_get() and bpy.data.objects["Mino.001"].select_get()
+    assert bpy.context.view_layer.objects.active == bpy.data.objects["Mino"]
 
 
 def test_load_inputs_round_trip(fresh_scene):

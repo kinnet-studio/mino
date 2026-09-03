@@ -133,22 +133,6 @@ def edit_mode_rails(obj):
     return rails[0], rails[1]
 
 
-def get_rails(context, samples):
-    obj = context.active_object
-    if context.mode == "EDIT_MESH" and obj is not None and obj.type == "MESH":
-        return edit_mode_rails(obj)
-    curves = [o for o in context.selected_objects if o.type == "CURVE"]
-    if len(curves) != 2:
-        raise LoftError(f"select exactly two curve objects ({len(curves)} selected), "
-                        "or two edge chains in Edit Mode")
-    if obj in curves:
-        a = obj
-        b = curves[0] if curves[1] is obj else curves[1]
-    else:
-        a, b = curves
-    return curve_rail(a, context, samples), curve_rail(b, context, samples)
-
-
 def order_sections(rails_by_name: dict, first: str) -> list[str]:
     """Greedy nearest-centroid chain of section names starting at `first`."""
     centroids = {name: np.asarray(pts, dtype=float).mean(axis=0) for name, (pts, _) in rails_by_name.items()}

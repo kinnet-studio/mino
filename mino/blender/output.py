@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..core.errors import LoftError
+
 GREEN = np.array([0.13, 0.8, 0.27, 1.0])
 YELLOW = np.array([1.0, 0.87, 0.13, 1.0])
 RED = np.array([0.93, 0.13, 0.13, 1.0])
@@ -97,6 +99,8 @@ def create_dart_object(context, dart, name, twist_tolerance):
                    [list(map(int, f)) for f in dart.faces])
     me.validate()
     me.update()
+    if len(me.polygons) != len(dart.face_twist):
+        raise LoftError(f"dart mesh validation dropped faces ({len(me.polygons)} of {len(dart.face_twist)} kept)")
     _write_twist_attributes(me, dart.face_twist, twist_tolerance)
     by_key = {tuple(sorted(e.vertices)): e.index for e in me.edges}
     flags = [False] * len(me.edges)

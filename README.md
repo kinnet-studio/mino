@@ -30,6 +30,8 @@ To see the twist colors: Solid shading > Color > Attribute.
 - Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it.
 - Planar Tolerance: quads still above it are split into two triangles.
 - Max Nudge: cap on vertex movement during planarize, as a fraction of the mean ruling length.
+- Consistent Creases: use one crease direction per run of split quads.
+- Diagnose: store ranked suggestions for non-developable regions on the result.
 - Export JSON: optional path; open `tools/viewer/index.html` and load the file with the Choose File button.
 
 ## When a loft is not developable
@@ -47,7 +49,8 @@ suggestions and a button for each:
   direction per run.
 
 Every remedy creates new objects next to the original. Selecting more than
-two curves lofts them in order as a chain of strips.
+two curves lofts them in order as a chain of strips, leaving all of them
+selected with the first strip active.
 
 ## Develop
 
@@ -56,4 +59,4 @@ two curves lofts them in order as a chain of strips.
     uv run python tools/viewer/export_cases.py
     open tools/viewer/index.html
 
-Design: `docs/superpowers/specs/2026-09-03-mino-poc-design.md`.
+Design: `docs/superpowers/specs/2026-09-03-devloft-poc-design.md`.
