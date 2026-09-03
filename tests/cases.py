@@ -44,9 +44,20 @@ def twisted(n=200):
     return dict(points_a=a, points_b=b, tangents_a=ta, tangents_b=tb, params={})
 
 
+def ellipse(n=200, a=1.5):
+    """Circle to a stretched ellipse: developable only if rulings lean by up to ~5 samples."""
+    th = np.linspace(0.0, np.pi, n)
+    pa = np.column_stack([np.cos(th), np.sin(th), np.zeros(n)])
+    ta = np.column_stack([-np.sin(th), np.cos(th), np.zeros(n)])
+    pb = np.column_stack([a * np.cos(th), np.sin(th), np.ones(n)])
+    tb = np.column_stack([-a * np.sin(th), np.cos(th), np.zeros(n)])
+    return dict(points_a=pa, points_b=pb, tangents_a=ta, tangents_b=tb, params=dict(window=2))
+
+
 CASES = {
     "cylinder": cylinder,
     "cone": cone,
     "offset_cylinder": offset_cylinder,
     "twisted": twisted,
+    "ellipse": ellipse,
 }
