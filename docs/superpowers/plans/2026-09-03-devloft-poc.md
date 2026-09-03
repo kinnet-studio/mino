@@ -254,14 +254,23 @@ from devloft.core.errors import LoftError
 from devloft.core.rails import central_difference, normalize_rows, prepare_rails, resample
 
 
-def test_resample_equal_spacing():
-    pts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [3, 1, 0]], float)
+def test_resample_equal_arc_length_spacing():
+    # collinear but unevenly spaced input: arc length equals Euclidean distance,
+    # so equal arc-length spacing must give equal segment lengths
+    pts = np.array([[0, 0, 0], [1, 0, 0], [1.2, 0, 0], [3, 0, 0]], float)
     rail = resample(pts, 7)
     seg = np.linalg.norm(np.diff(rail.points, axis=0), axis=1)
     assert rail.points.shape == (7, 3)
-    assert np.allclose(seg, seg[0])
+    assert np.allclose(seg, 0.5)
     assert np.allclose(rail.points[0], pts[0])
     assert np.allclose(rail.points[-1], pts[-1])
+
+
+def test_resample_corner_lands_on_polyline():
+    # a corner: samples at arc lengths 0, 1, 2 hit the corner exactly and stay on the path
+    pts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]], float)
+    rail = resample(pts, 3)
+    assert np.allclose(rail.points, pts)
 
 
 def test_resample_removes_duplicates():
@@ -398,7 +407,7 @@ def prepare_rails(points_a, points_b, samples: int, tangents_a=None, tangents_b=
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_rails.py -q`
-Expected: 8 passed.
+Expected: 9 passed.
 
 - [ ] **Step 5: Commit**
 
