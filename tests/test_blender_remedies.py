@@ -77,7 +77,35 @@ def test_reloft_with_window_creates_new_object(fresh_scene):
     new = bpy.data.objects["Mino.reloft"]
     assert json.loads(new["mino_params"])["window"] == 16
     assert json.loads(new["mino_params"])["samples"] == 40
+    assert json.loads(new["mino_params"])["planarize"] is True
     assert "mino_diagnosis" in new
+
+
+def test_reloft_can_turn_off_planarize_and_diagnose(fresh_scene):
+    obj = _twisted_loft()
+    assert bpy.ops.mino.reloft(planarize=False, diagnose=False) == {"FINISHED"}
+    new = bpy.data.objects["Mino.reloft"]
+    params = json.loads(new["mino_params"])
+    assert params["planarize"] is False and params["window"] == 8
+    assert new["mino_diagnosis"] == ""
+
+
+def test_subdivide_defaults_to_diagnosis_count(fresh_scene):
+    obj = _twisted_loft()
+    diag = json.loads(obj["mino_diagnosis"])
+    expected = diag["strakes_needed"] or 2
+    assert bpy.ops.mino.subdivide() == {"FINISHED"}
+    assert f"Mino.strake.{expected - 1}" in bpy.data.objects
+    assert f"Mino.strake.{expected}" not in bpy.data.objects
+
+
+def test_load_inputs_rejects_missing_params(fresh_scene):
+    from mino.blender.state import load_inputs
+    from mino.core.errors import LoftError
+    obj = _twisted_loft()
+    del obj["mino_params"]
+    with pytest.raises(LoftError):
+        load_inputs(obj)
 
 
 def test_subdivide_creates_strake_objects(fresh_scene):

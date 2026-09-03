@@ -5,7 +5,7 @@ import json
 from dataclasses import replace
 
 import bpy
-from bpy.props import EnumProperty, FloatProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty
 
 from ..core import LoftError, loft
 from ..core.dart import dart_mesh, dart_proposal
@@ -17,6 +17,26 @@ from .state import load_diagnosis, load_inputs
 
 OFF_ROW = ("Diagnosis off for this loft", None, {})
 
+PARAM_PROPS = ("samples", "window", "twist_tolerance", "tie_breaker", "tie_weight", "plane_normal",
+               "planarize", "planar_tolerance", "planarize_max_nudge", "consistent_creases")
+
+
+def effective_params(op, stored):
+    """Stored LoftParams overridden by every property the caller actually set."""
+    overrides = {}
+    for name in PARAM_PROPS:
+        if op.properties.is_property_set(name):
+            value = getattr(op, name)
+            overrides[name] = tuple(value) if name == "plane_normal" else value
+    return replace(stored, **overrides)
+
+
+def seed_from_params(op, stored):
+    """Copy stored values into unset properties so the redo panel shows real numbers."""
+    for name in PARAM_PROPS:
+        if not op.properties.is_property_set(name):
+            setattr(op, name, getattr(stored, name))
+
 
 def diagnosis_rows(obj):
     """(text, operator idname or None, property values) per suggestion, from stored JSON."""
@@ -27,7 +47,8 @@ def diagnosis_rows(obj):
     rows = []
     for s in d.suggestions:
         if s.kind == "window":
-            rows.append((f"Re-loft with Window {s.params['window']}", "mino.reloft", {"window": int(s.params["window"])}))
+            window = min(int(s.params["window"]), 400)
+            rows.append((f"Re-loft with Window {window}", "mino.reloft", {"window": window}))
         elif s.kind == "subdivide":
             rows.append((f"Subdivide into {s.params['strakes']} strakes", "mino.subdivide", {"strakes": int(s.params["strakes"])}))
         elif s.kind == "unsolved":
@@ -57,23 +78,52 @@ class MINO_OT_reloft(_MinoRemedy, bpy.types.Operator):
     bl_idname = "mino.reloft"
     bl_label = "Re-loft"
 
-    window: IntProperty(name="Window", default=0, min=0, max=100, description="0 keeps the stored value")
-    samples: IntProperty(name="Samples", default=0, min=0, max=400, description="0 keeps the stored value")
-    twist_tolerance: FloatProperty(name="Twist Tolerance", default=0.0, min=0.0, max=90.0,
-                                   description="0 keeps the stored value")
+    samples: IntProperty(name="Samples", default=60, min=8, max=400,
+                         description="Points per rail after resampling")
+    window: IntProperty(name="Window", default=8, min=1, max=400,
+                        description="How far rulings may lean, in samples")
+    twist_tolerance: FloatProperty(name="Twist Tolerance", default=5.0, min=0.0, max=90.0, subtype="NONE",
+                                   description="Rulings with more twist (degrees) are flagged")
+    tie_breaker: EnumProperty(name="Tie Breaker", default="none", items=[
+        ("none", "None", "Minimum twist only"),
+        ("shortest", "Shortest Ruling", "Prefer shorter rulings"),
+        ("plane", "Plane Direction", "Prefer rulings parallel to a plane normal"),
+    ])
+    tie_weight: FloatProperty(name="Tie Weight", default=0.1, min=0.0, max=10.0)
+    plane_normal: FloatVectorProperty(name="Plane Normal", default=(0.0, 0.0, 1.0), subtype="XYZ")
+    planarize: BoolProperty(name="Planarize", default=True,
+                            description="Nudge vertices so near-planar quads become planar")
+    planar_tolerance: FloatProperty(name="Planar Tolerance", default=0.01, min=0.0, max=0.5,
+                                    description="Relative diagonal offset; quads above this are split")
+    planarize_max_nudge: FloatProperty(name="Max Nudge", default=0.05, min=0.0, max=0.5,
+                                       description="Cap on vertex movement during planarize, "
+                                                    "as a fraction of the mean ruling length")
+    consistent_creases: BoolProperty(name="Consistent Creases", default=True,
+                                     description="Use one crease direction per run of split quads")
+    diagnose: BoolProperty(name="Diagnose", default=True,
+                           description="Store ranked suggestions for non-developable regions on the result")
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        try:
+            pa, ta, pb, tb, params = load_inputs(obj)
+        except LoftError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        seed_from_params(self, params)
+        return self.execute(context)
 
     def execute(self, context):
         obj = context.active_object
         try:
-            pa, ta, pb, tb, params = load_inputs(obj)
-            overrides = {k: v for k, v in (("window", self.window), ("samples", self.samples),
-                                           ("twist_tolerance", self.twist_tolerance)) if v}
-            params = replace(params, **overrides)
+            pa, ta, pb, tb, stored = load_inputs(obj)
+            params = effective_params(self, stored)
             result = loft(pa, pb, params, ta, tb)
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
-        new, _ = output.create_result_object(context, f"{obj.name}.reloft", pa, ta, pb, tb, params, result, True)
+        new, _ = output.create_result_object(context, f"{obj.name}.reloft", pa, ta, pb, tb, params, result,
+                                             self.diagnose)
         self.report({"INFO"}, new["mino_report"])
         return {"FINISHED"}
 
@@ -83,15 +133,26 @@ class MINO_OT_subdivide(_MinoRemedy, bpy.types.Operator):
     bl_idname = "mino.subdivide"
     bl_label = "Subdivide into Strakes"
 
-    strakes: IntProperty(name="Strakes", default=0, min=0, max=8,
-                         description="Number of strips; 0 uses the diagnosis suggestion")
+    strakes: IntProperty(name="Strakes", default=2, min=2, max=8,
+                         description="Number of strips")
+    diagnose: BoolProperty(name="Diagnose", default=True,
+                           description="Store ranked suggestions for non-developable regions on each strake")
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if not self.properties.is_property_set("strakes"):
+            diag = load_diagnosis(obj)
+            if diag and diag.strakes_needed:
+                self.strakes = diag.strakes_needed
+        return self.execute(context)
 
     def execute(self, context):
         obj = context.active_object
         try:
             pa, ta, pb, tb, params = load_inputs(obj)
             diag = load_diagnosis(obj)
-            strakes = self.strakes or (diag.strakes_needed if diag and diag.strakes_needed else 2)
+            strakes = (self.strakes if self.properties.is_property_set("strakes")
+                      else (diag.strakes_needed if diag and diag.strakes_needed else 2))
             base = loft(pa, pb, params, ta, tb)
             sections = subdivide_sections(pa, pb, ta, tb, params, base.rulings, strakes)
             strips = chain_loft(sections, params)
@@ -99,7 +160,8 @@ class MINO_OT_subdivide(_MinoRemedy, bpy.types.Operator):
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         for k, (((sa, sta), (sb, stb)), strip) in enumerate(zip(zip(sections, sections[1:]), strips)):
-            output.create_result_object(context, f"{obj.name}.strake.{k}", sa, sta, sb, stb, params, strip, True, strake=k)
+            output.create_result_object(context, f"{obj.name}.strake.{k}", sa, sta, sb, stb, params, strip,
+                                        self.diagnose, strake=k)
         worst = max(s.report.max_twist for s in strips)
         bad = sum(1 for s in strips if s.failing_ranges)
         self.report({"INFO"}, f"Mino: {strakes} strakes, worst twist {worst:.1f} deg, {bad} not developable")
@@ -111,13 +173,21 @@ class MINO_OT_dart(_MinoRemedy, bpy.types.Operator):
     bl_idname = "mino.dart"
     bl_label = "Cut Dart"
 
-    ruling: IntProperty(name="Ruling", default=-1, min=-1, max=800,
-                        description="Cut ruling; -1 uses the diagnosis suggestion")
+    ruling: IntProperty(name="Ruling", default=0, min=0, max=800,
+                        description="Cut ruling")
     mid_rails: IntProperty(name="Mid Rails", default=3, min=1, max=6)
     dart_from: EnumProperty(name="Open End", default="B", items=[
         ("B", "Rail B", "The cut opens at rail B and its tip stops short of rail A"),
         ("A", "Rail A", "The cut opens at rail A and its tip stops short of rail B"),
     ])
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if not self.properties.is_property_set("ruling"):
+            diag = load_diagnosis(obj)
+            if diag and diag.darts:
+                self.ruling = diag.darts[0].ruling
+        return self.execute(context)
 
     def execute(self, context):
         obj = context.active_object
@@ -126,7 +196,7 @@ class MINO_OT_dart(_MinoRemedy, bpy.types.Operator):
             diag = load_diagnosis(obj)
             base = loft(pa, pb, params, ta, tb)
             ra, rb = prepare_rails(pa, pb, params.samples, ta, tb)
-            if self.ruling >= 0:
+            if self.properties.is_property_set("ruling"):
                 ruling = min(self.ruling, len(base.rulings) - 1)
             elif diag and diag.darts:
                 ruling = diag.darts[0].ruling

@@ -29,7 +29,12 @@ class MINO_PT_panel(bpy.types.Panel):
         box = layout.box()
         box.label(text="Diagnosis", icon="INFO")
         box.label(text=obj.get("mino_report", ""))
-        for text, idname, props in diagnosis_rows(obj):
+        try:
+            rows = diagnosis_rows(obj)
+        except Exception:
+            box.label(text="Diagnosis unavailable (stored data unreadable)")
+            return
+        for text, idname, props in rows:
             row = box.row()
             if idname is None:
                 row.label(text=text)

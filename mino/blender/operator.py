@@ -28,7 +28,7 @@ class MINO_OT_loft(bpy.types.Operator):
 
     samples: IntProperty(name="Samples", default=60, min=8, max=400,
                          description="Points per rail after resampling")
-    window: IntProperty(name="Window", default=8, min=1, max=100,
+    window: IntProperty(name="Window", default=8, min=1, max=400,
                         description="How far rulings may lean, in samples")
     twist_tolerance: FloatProperty(name="Twist Tolerance", default=5.0, min=0.0, max=90.0, subtype="NONE",
                                    description="Rulings with more twist (degrees) are flagged")

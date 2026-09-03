@@ -44,6 +44,8 @@ def _arr(value):
 def load_inputs(obj):
     if "mino_rails" not in obj:
         raise LoftError(f"'{obj.name}' is not a Mino result object")
+    if "mino_params" not in obj:
+        raise LoftError(f"'{obj.name}' has no stored parameters")
     rails = json.loads(obj["mino_rails"])
     params = params_from_dict(json.loads(obj["mino_params"]))
     return _arr(rails["a"]), _arr(rails["ta"]), _arr(rails["b"]), _arr(rails["tb"]), params
