@@ -49,8 +49,14 @@ def create_strip_object(context, result, name, twist_tolerance):
 
     obj = bpy.data.objects.new(name, me)
     context.collection.objects.link(obj)
-    for o in context.view_layer.objects:
-        o.select_set(False)
-    obj.select_set(True)
-    context.view_layer.objects.active = obj
+    # Selecting/activating objects is only valid in Object Mode; the operator
+    # no longer force-switches modes (a mode switch inside a REGISTER/UNDO
+    # operator leaves the mode un-restored on undo, breaking Adjust Last
+    # Operation). In Edit Mode we just link the new object and leave
+    # selection/active-object state alone.
+    if context.mode == "OBJECT":
+        for o in context.view_layer.objects:
+            o.select_set(False)
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
     return obj

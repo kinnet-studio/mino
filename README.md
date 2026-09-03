@@ -13,6 +13,8 @@ not) so you can see where a panel must be split.
 Then in Blender 4.2+: Preferences > Get Extensions > drop-down > Install from
 Disk, choose `dist/devloft-0.1.0.zip`. The operator appears in the 3D
 Viewport sidebar under the **DevLoft** tab and in the Add menu.
+After an Edit Mode run, press Tab to return to Object Mode and select the
+new DevLoft object.
 
 To see the twist colors: Solid shading > Color > Attribute.
 

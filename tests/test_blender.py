@@ -115,10 +115,11 @@ def test_operator_on_edit_mode_chains(fresh_scene):
     bpy.ops.object.mode_set(mode="EDIT")
     result = bpy.ops.devloft.loft(samples=12)
     assert result == {"FINISHED"}
-    assert bpy.context.mode == "OBJECT"
+    assert bpy.context.mode == "EDIT_MESH"
     out = bpy.data.objects["DevLoft"]
     assert len(out.data.vertices) == 24
     assert "twist" in out.data.attributes
+    bpy.ops.object.mode_set(mode="OBJECT")
 
 
 def test_operator_errors_on_bad_selection(fresh_scene):

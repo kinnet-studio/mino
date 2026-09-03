@@ -16,6 +16,14 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
     bl_label = "Developable Loft (two rails)"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context):
+        if context.mode not in {"OBJECT", "EDIT_MESH"}:
+            cls.poll_message_set("Run in Object Mode with two curves selected, "
+                                  "or in Edit Mode with two edge chains selected")
+            return False
+        return True
+
     samples: IntProperty(name="Samples", default=60, min=8, max=400,
                          description="Points per rail after resampling")
     window: IntProperty(name="Window", default=8, min=1, max=100,
@@ -48,8 +56,6 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
         )
         try:
             (pa, ta), (pb, tb) = inputs.get_rails(context, params.samples)
-            if context.mode == "EDIT_MESH":
-                bpy.ops.object.mode_set(mode="OBJECT")
             result = loft(pa, pb, params, ta, tb)
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
