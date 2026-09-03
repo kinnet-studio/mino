@@ -165,7 +165,7 @@ pre-fills `window = window_fix`.
 Operators, all in Object Mode, all reading the active Mino object's
 stored inputs and creating new objects (never replacing):
 
-- `mino.reloft`: properties mirror the loft's. Any property the caller did not set (`self.properties.is_property_set`) takes its value from `mino_params`; `invoke` seeds the unset ones so the redo panel shows real values. Every remedy operator also has a `diagnose` toggle (default True).
+- `mino.reloft`: properties mirror the loft's. Any property the caller did not set (`self.properties.is_property_set`) takes its value from `mino_params`; `invoke` seeds the unset ones so the redo panel shows real values. The remedy operators that create loft results (`mino.reloft`, `mino.subdivide`) also have a `diagnose` toggle (default True); `mino.dart` creates a refined mesh, not a loft result, so it stores no diagnosis and has no toggle.
 - `mino.subdivide`: `strakes` int 2..8; when unset it takes `strakes_needed` from the stored diagnosis (or 2), seeded by `invoke` for the redo panel. Creates one object per strip named `<name>.strake.<k>` with `strake` attribute, each with its own stored inputs and diagnosis. Reports the worst twist.
 - `mino.dart`: `ruling` int (unset: the first dart proposal's ruling, else the max-twist ruling), `mid_rails` int 1..6 default 3, `dart_from` enum A/B default B. Creates `<name>.dart` with `twist` face attribute, `seam` edge attribute, `use_seam` set. Reports the wedge angle and kind.
 - `mino.loft` gains `consistent_creases` (default True) and `diagnose` (default True; when off no diagnosis is stored and the panel says so).
