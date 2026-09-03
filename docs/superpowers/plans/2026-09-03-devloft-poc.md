@@ -827,6 +827,20 @@ def test_split_quads_over_tolerance():
     assert set(out[0]) | set(out[1]) == {0, 1, 2, 3}
 
 
+def test_split_quads_keep_strip_adjacency():
+    # raising different vertices exercises both diagonal choices; every
+    # consecutive pair of output faces must still share exactly two vertices
+    for raised in (1, 2, 5, 6):
+        v = np.array([[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0],
+                      [0, 1, 0], [1, 1, 0], [2, 1, 0], [3, 1, 0]], float)
+        v[raised, 2] = 0.3
+        faces = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6)]
+        out, src, split = split_quads(v, faces, face_planarity(v, faces), tolerance=0.01)
+        assert split.any()
+        for f, g in zip(out, out[1:]):
+            assert len(set(f) & set(g)) == 2
+
+
 def test_mesh_area():
     v = np.array([[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]], float)
     assert np.isclose(mesh_area(v, [(0, 1, 2, 3)]), 2.0)
@@ -926,8 +940,13 @@ def _dihedral(verts, tris):
 
 
 def best_diagonal(verts, face):
+    """Split a strip quad (A[i], A[i+1], B[j+1], B[j]) into two triangles.
+
+    The first triangle must contain the incoming ruling (v0, v3) and the second
+    the outgoing ruling (v1, v2) so consecutive faces keep sharing an edge.
+    """
     v0, v1, v2, v3 = face
-    opt_a = [(v0, v1, v2), (v0, v2, v3)]
+    opt_a = [(v0, v2, v3), (v0, v1, v2)]
     opt_b = [(v0, v1, v3), (v1, v2, v3)]
     return opt_a if _dihedral(verts, opt_a) <= _dihedral(verts, opt_b) else opt_b
 
@@ -958,7 +977,7 @@ def mesh_area(verts, faces) -> float:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_mesh.py -q`
-Expected: 8 passed.
+Expected: 9 passed.
 
 - [ ] **Step 5: Commit**
 
