@@ -13,9 +13,13 @@ def register():
     for cls in _classes:
         bpy.utils.register_class(cls)
     bpy.types.VIEW3D_MT_add.append(_menu)
+    bpy.types.VIEW3D_MT_object_context_menu.append(_menu)
+    bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(_menu)
 
 
 def unregister():
+    bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(_menu)
+    bpy.types.VIEW3D_MT_object_context_menu.remove(_menu)
     bpy.types.VIEW3D_MT_add.remove(_menu)
     for cls in reversed(_classes):
         bpy.utils.unregister_class(cls)
