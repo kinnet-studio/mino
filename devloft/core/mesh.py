@@ -82,8 +82,15 @@ def _dihedral(verts, tris):
 
 
 def best_diagonal(verts, face):
+    """Pick the flatter diagonal of a strip quad `(v0, v1, v2, v3) = (A[i], A[i+1], B[j+1], B[j])`.
+
+    Ordering rule: the first emitted triangle must contain the incoming
+    ruling `(v0, v3)` and the second must contain the outgoing ruling
+    `(v1, v2)`, so consecutive faces in the strip keep sharing an edge after
+    a split. Winding stays consistent between the two options.
+    """
     v0, v1, v2, v3 = face
-    opt_a = [(v0, v1, v2), (v0, v2, v3)]
+    opt_a = [(v0, v2, v3), (v0, v1, v2)]
     opt_b = [(v0, v1, v3), (v1, v2, v3)]
     return opt_a if _dihedral(verts, opt_a) <= _dihedral(verts, opt_b) else opt_b
 
