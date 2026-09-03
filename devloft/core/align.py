@@ -28,12 +28,17 @@ def tie_matrix(rail_a: Rail, rail_b: Rail, mode: str, plane_normal) -> np.ndarra
     raise LoftError(f"unknown tie_breaker {mode!r}")
 
 
-def _explain_failure(cost: np.ndarray) -> str:
+def _explain_failure(cost: np.ndarray, D: np.ndarray) -> str:
     finite_rows = np.isfinite(cost).any(axis=1)
     if not finite_rows.all():
         i = int(np.flatnonzero(~finite_rows)[0])
         return (f"no valid ruling from rail A point {i} within the window "
                 f"(ruling parallel to a tangent or zero length); widen the window or check the rails")
+    # Find the first row where no monotone path reaches
+    reachable_rows = np.isfinite(D).any(axis=1)
+    if not reachable_rows.all():
+        i = int(np.flatnonzero(~reachable_rows)[0])
+        return f"no monotone ruling path reaches rail A point {i} within the window; try a larger window"
     return "no monotone ruling path within the window; try a larger window"
 
 
@@ -58,7 +63,7 @@ def align(cost: np.ndarray) -> list[tuple[int, int]]:
                 D[i, j] = cost[i, j] + best
                 back[i, j] = arg
     if not np.isfinite(D[n - 1, m - 1]):
-        raise LoftError(_explain_failure(cost))
+        raise LoftError(_explain_failure(cost, D))
     path = []
     i, j = n - 1, m - 1
     while True:

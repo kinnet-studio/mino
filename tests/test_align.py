@@ -68,3 +68,14 @@ def test_tie_matrix_modes():
     assert plane[0, 1] > 0.0
     with pytest.raises(LoftError):
         tie_matrix(a, b, "bogus", (0, 0, 1))
+
+
+def test_raises_naming_unreachable_row_when_rows_have_holes():
+    # every row has a finite cell, but no monotone path connects them
+    cost = np.full((3, 3), np.inf)
+    cost[0, 0] = 0.0
+    cost[1, 2] = 0.0
+    cost[2, 0] = 0.0
+    with pytest.raises(LoftError) as e:
+        align(cost)
+    assert "1" in str(e.value)
