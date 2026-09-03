@@ -16,9 +16,19 @@ def _polygon_normal(P: np.ndarray) -> np.ndarray:
 def _flatten_face(P: np.ndarray) -> np.ndarray:
     c = P.mean(axis=0)
     n = _polygon_normal(P - c)
-    u = P[1] - P[0]
-    u = u - n * np.dot(u, n)
-    u = normalize_rows(u)
+
+    # Find first non-degenerate edge
+    u = None
+    for k in range(len(P)):
+        edge = P[(k + 1) % len(P)] - P[k]
+        edge = edge - n * np.dot(edge, n)
+        if np.linalg.norm(edge) > 1e-12:
+            u = normalize_rows(edge)
+            break
+
+    if u is None:  # fully degenerate face
+        return np.zeros((len(P), 2))
+
     v = np.cross(n, u)
     Q = P - c
     return np.column_stack([Q @ u, Q @ v])

@@ -43,3 +43,15 @@ def test_unfold_bent_quad_loses_area():
     faces = [(0, 1, 2, 3), (1, 4, 5, 2)]
     area, _ = unfold_strip(v, faces)
     assert area < mesh_area(v, faces)
+
+
+def test_flatten_face_survives_degenerate_first_edge():
+    from devloft.core.unfold import _flatten_face
+    P = np.array([[0, 0, 0], [0, 0, 0], [1, 1, 0], [1, 0, 0]], float)
+    local = _flatten_face(P)
+    assert local.shape == (4, 2)
+    # the non-degenerate vertices keep their true pairwise distances
+    assert np.isclose(np.linalg.norm(local[2] - local[3]), 1.0)
+    assert np.isclose(np.linalg.norm(local[3] - local[0]), 1.0)
+    assert np.isclose(np.linalg.norm(local[2] - local[0]), np.sqrt(2))
+    assert np.allclose(_flatten_face(np.zeros((3, 3))), 0.0)
