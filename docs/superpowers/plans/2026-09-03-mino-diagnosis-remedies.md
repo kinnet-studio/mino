@@ -12,6 +12,8 @@
 
 Deviations from the spec decided while planning: stored-input helpers live in a new `mino/blender/state.py` (the spec listed them under output/operator); `subdivide_sections` is added beside `subdivide` so operators can store per-strip inputs; `dart_proposal` takes no `planar_tolerance` (the wedge does not depend on it); the twisted test case is not solved by 8 strakes at the default 5° tolerance (measured 5.2°), so the diagnosis tests assert the `unsolved` path there and the `subdivide` path at 8°.
 
+Recorded after the final review (spec amended to match): `find_strake_count` is a bracketed doubling search (2, 4, 8, then the bracket) rather than a linear scan; remedy operators mirror the loft's properties and fall back to stored values for properties the caller did not set (no 0/-1 sentinels), each with a `diagnose` toggle; the wedge sums columns `k1..k2` of the failing range; after a chained loft every strip is selected with the first active; `get_rails` was removed in favour of `get_sections`.
+
 ## Global Constraints
 
 - `mino/core/**` must never import `bpy` or `mathutils`. numpy and stdlib only.

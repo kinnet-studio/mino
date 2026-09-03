@@ -98,7 +98,7 @@ central differences apply.
 
 - `mid_rails(rail_a, rail_b, rulings, count) -> list[np.ndarray]` returns `count` polylines at `t = 1/(count+1), ..., count/(count+1)`.
 - `subdivide(points_a, points_b, tangents_a, tangents_b, params, rulings, strakes) -> list[StripResult]` lofts A→M1, M1→M2, ..., Mk→B with `strakes = k+1` strips. Mid-rails get the resampled points as their input polylines.
-- `find_strake_count(points_a, points_b, tangents_a, tangents_b, params, rulings, max_strakes) -> tuple[int | None, float, list[StripResult]]`: tries `strakes = 2 .. max_strakes`, returns the first count whose strips all have `report.max_twist <= twist_tolerance`, its worst twist and its strips; else `(None, worst at max, strips at max)`.
+- `find_strake_count(points_a, points_b, tangents_a, tangents_b, params, rulings, max_strakes) -> tuple[int | None, float, list[StripResult]]`: a bracketed doubling search. It tries 2, 4, 8 (capped at `max_strakes`); if none passes it returns `(None, worst at the largest tried, its strips)`. When a count passes, it scans every count in the bracket between the last failing doubling and the passing one in ascending order and returns the first that passes, so the reported minimum is exact. Worst twist is not monotone in strake count, so a bisection is not used. The search is the bulk of a diagnosis (about 1 s at 60 samples with the linear scan; the bracket cuts it by roughly 2.6x).
 
 Note the re-lofts choose their own rulings; the mid-rails only fix the
 surface. Twist typically halves per doubling, so 8 strakes covers
@@ -136,7 +136,8 @@ and columns are quads; each is kept if its planarity is under
 operator range 1..6.
 
 Wedge angle: discrete Gauss–Bonnet. At every interior grid vertex (rows
-1..m, columns strictly inside the failing range) the angle deficit is
+1..m, columns `k1..k2` of the failing range, i.e. strictly inside the window
+widened by one column on each side) the angle deficit is
 `2π − Σ incident face corner angles`, computed on the triangulated faces.
 `wedge = Σ deficits` in degrees. Positive means the flat piece needs a
 wedge removed (dart), negative means inserted (gusset). This approximates
@@ -164,9 +165,9 @@ pre-fills `window = window_fix`.
 Operators, all in Object Mode, all reading the active Mino object's
 stored inputs and creating new objects (never replacing):
 
-- `mino.reloft`: properties mirror the loft's; defaults come from `mino_params`.
-- `mino.subdivide`: `strakes` int 2..8 default from `strakes_needed` (or 2). Creates one object per strip named `<name>.strake.<k>` with `strake` attribute, each with its own stored inputs and diagnosis. Reports the worst twist.
-- `mino.dart`: `ruling` int, `mid_rails` int 1..6 default 3, `dart_from` enum A/B default B. Creates `<name>.dart` with `twist` face attribute, `seam` edge attribute, `use_seam` set. Reports the wedge angle and kind.
+- `mino.reloft`: properties mirror the loft's. Any property the caller did not set (`self.properties.is_property_set`) takes its value from `mino_params`; `invoke` seeds the unset ones so the redo panel shows real values. Every remedy operator also has a `diagnose` toggle (default True).
+- `mino.subdivide`: `strakes` int 2..8; when unset it takes `strakes_needed` from the stored diagnosis (or 2), seeded by `invoke` for the redo panel. Creates one object per strip named `<name>.strake.<k>` with `strake` attribute, each with its own stored inputs and diagnosis. Reports the worst twist.
+- `mino.dart`: `ruling` int (unset: the first dart proposal's ruling, else the max-twist ruling), `mid_rails` int 1..6 default 3, `dart_from` enum A/B default B. Creates `<name>.dart` with `twist` face attribute, `seam` edge attribute, `use_seam` set. Reports the wedge angle and kind.
 - `mino.loft` gains `consistent_creases` (default True) and `diagnose` (default True; when off no diagnosis is stored and the panel says so).
 
 Panel `MINO_PT_panel` gains a Diagnosis box when the active object has
