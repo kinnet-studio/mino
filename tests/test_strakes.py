@@ -55,6 +55,23 @@ def test_find_strake_count_reaches_tolerance():
     assert all(s.report.failing_ruling_count == 0 for s in strips)
 
 
+def test_find_strake_count_visits_doubling_then_bracket(monkeypatch):
+    import mino.core.strakes as strakes_mod
+    visited = []
+    real = strakes_mod.subdivide
+
+    def spy(*args, **kwargs):
+        visited.append(args[6] if len(args) > 6 else kwargs["strakes"])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(strakes_mod, "subdivide", spy)
+    case, params, res = _twisted(twist_tolerance=8.0)
+    count, _, _ = find_strake_count(case["points_a"], case["points_b"], case["tangents_a"],
+                                    case["tangents_b"], params, res.rulings, max_strakes=8)
+    assert count == 6
+    assert visited == [2, 4, 8, 5, 6]
+
+
 def test_find_strake_count_reports_failure_when_capped():
     case, params, res = _twisted()
     count, worst, strips = find_strake_count(case["points_a"], case["points_b"], case["tangents_a"],

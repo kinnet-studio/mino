@@ -52,13 +52,30 @@ def find_strake_count(points_a, points_b, tangents_a, tangents_b, params: LoftPa
                       max_strakes: int = 8):
     """Smallest strake count whose strips all pass the twist tolerance.
 
-    Returns (count, worst_twist, strips); count is None when even max_strakes fails,
-    in which case worst_twist and strips describe the max_strakes attempt.
+    Bracketed doubling: try 2, 4, 8, ... up to max_strakes. If none passes,
+    return (None, worst at the largest tried, its strips). When a count passes,
+    scan every count between the last failing doubling and the passing one in
+    ascending order and return the first that passes, so the minimum is exact.
+    Worst twist is not monotone in the strake count, so no bisection.
     """
-    worst, strips = float("inf"), []
-    for strakes in range(2, max_strakes + 1):
+    def attempt(strakes):
         strips = subdivide(points_a, points_b, tangents_a, tangents_b, params, rulings, strakes)
-        worst = max(s.report.max_twist for s in strips)
-        if worst <= params.twist_tolerance:
+        return max(s.report.max_twist for s in strips), strips
+
+    tol = params.twist_tolerance
+    last_fail = 1
+    strakes = 2
+    worst, strips = float("inf"), []
+    while True:
+        strakes = min(strakes, max_strakes)
+        worst, strips = attempt(strakes)
+        if worst <= tol:
+            for candidate in range(last_fail + 1, strakes):
+                cand_worst, cand_strips = attempt(candidate)
+                if cand_worst <= tol:
+                    return candidate, cand_worst, cand_strips
             return strakes, worst, strips
-    return None, worst, strips
+        if strakes >= max_strakes:
+            return None, worst, strips
+        last_fail = strakes
+        strakes *= 2

@@ -38,6 +38,8 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge):
     orig = verts.copy()
     quads = [f for f in faces if len(f) == 4]
     pinned = list(pinned)
+    if len(set(pinned)) >= len(verts):
+        return verts
     for _ in range(iterations):
         pl = face_planarity(verts, quads)
         if len(pl) == 0 or pl.max() <= tolerance:
