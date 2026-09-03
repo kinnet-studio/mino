@@ -252,6 +252,7 @@ Properties mirror `LoftParams`:
 - `plane_normal` float vector, default (0, 0, 1)
 - `planarize` bool, default True
 - `planar_tolerance` float, 0..0.5, default 0.01
+- `planarize_max_nudge` float, 0..0.5, default 0.05 (fraction of mean ruling length)
 
 `execute` (no mode switching, so Adjust Last Operation can re-run it):
 1. `get_rails` -> two polylines with optional tangents.
