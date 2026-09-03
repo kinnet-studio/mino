@@ -1,18 +1,18 @@
 import bpy
 
-from .operator import DEVLOFT_OT_loft
+from .operator import MINO_OT_loft
 
 
-class DEVLOFT_PT_panel(bpy.types.Panel):
-    bl_label = "DevLoft"
-    bl_idname = "DEVLOFT_PT_panel"
+class MINO_PT_panel(bpy.types.Panel):
+    bl_label = "Mino"
+    bl_idname = "MINO_PT_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "DevLoft"
+    bl_category = "Mino"
 
     def draw(self, context):
         col = self.layout.column(align=True)
-        col.operator(DEVLOFT_OT_loft.bl_idname, icon="MOD_CURVE")
+        col.operator(MINO_OT_loft.bl_idname, icon="MOD_CURVE")
         col.separator()
         col.label(text="Select two curves (active = rail A),")
         col.label(text="or two edge chains in Edit Mode.")

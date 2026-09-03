@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from devloft.core.align import STEP_PENALTY, align, tie_matrix
-from devloft.core.errors import LoftError
-from devloft.core.types import Rail
+from mino.core.align import STEP_PENALTY, align, tie_matrix
+from mino.core.errors import LoftError
+from mino.core.types import Rail
 
 
 def _is_monotone(path):

@@ -14,8 +14,8 @@ def test_export_writes_data_js_and_json(tmp_path):
     assert "data.js" in names
     assert {"cylinder.json", "cone.json", "offset_cylinder.json", "twisted.json"} <= names
     js = (tmp_path / "data.js").read_text()
-    assert js.startswith("window.DEVLOFT_CASES = [")
-    payload = json.loads(js[len("window.DEVLOFT_CASES = "):].rstrip().rstrip(";"))
+    assert js.startswith("window.MINO_CASES = [")
+    payload = json.loads(js[len("window.MINO_CASES = "):].rstrip().rstrip(";"))
     assert [c["name"] for c in payload] == ["cylinder", "cone", "offset_cylinder", "twisted"]
     cyl = json.loads((tmp_path / "cylinder.json").read_text())
     assert cyl["report"]["failing_ruling_count"] == 0

@@ -10,9 +10,9 @@ from ..core.export import result_to_dict
 from . import inputs, output
 
 
-class DEVLOFT_OT_loft(bpy.types.Operator):
+class MINO_OT_loft(bpy.types.Operator):
     """Loft a developable strip between two rail curves or edge chains"""
-    bl_idname = "devloft.loft"
+    bl_idname = "mino.loft"
     bl_label = "Developable Loft (two rails)"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -60,7 +60,7 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
-        output.create_strip_object(context, result, "DevLoft", params.twist_tolerance)
+        output.create_strip_object(context, result, "Mino", params.twist_tolerance)
         if self.export_json:
             path = bpy.path.abspath(self.export_json)
             try:

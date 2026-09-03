@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from devloft.core.errors import LoftError
-from devloft.core.rails import central_difference, normalize_rows, prepare_rails, resample
+from mino.core.errors import LoftError
+from mino.core.rails import central_difference, normalize_rows, prepare_rails, resample
 
 
 def test_resample_equal_arc_length_spacing():

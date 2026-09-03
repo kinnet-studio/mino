@@ -3,12 +3,12 @@ import math
 import numpy as np
 import pytest
 
-bpy = pytest.importorskip("bpy")  # devloft.blender imports bpy at package level
+bpy = pytest.importorskip("bpy")  # mino.blender imports bpy at package level
 
-import devloft  # noqa: E402
-from devloft.blender.inputs import chains_from_edges  # noqa: E402
-from devloft.blender.output import twist_colors  # noqa: E402
-from devloft.core.errors import LoftError  # noqa: E402
+import mino  # noqa: E402
+from mino.blender.inputs import chains_from_edges  # noqa: E402
+from mino.blender.output import twist_colors  # noqa: E402
+from mino.core.errors import LoftError  # noqa: E402
 
 
 def test_chains_from_edges_two_open_chains():
@@ -39,7 +39,7 @@ def test_twist_colors_ramp():
 def fresh_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     try:
-        devloft.register()
+        mino.register()
     except ValueError:
         pass  # already registered
     yield bpy.context
@@ -107,9 +107,9 @@ def test_operator_on_curves(fresh_scene):
     a = _make_arc_curve("A", 1.0, 0.0)
     b = _make_arc_curve("B", 1.0, 1.0)
     _select([a, b], a)
-    result = bpy.ops.devloft.loft(samples=30)
+    result = bpy.ops.mino.loft(samples=30)
     assert result == {"FINISHED"}
-    obj = bpy.data.objects["DevLoft"]
+    obj = bpy.data.objects["Mino"]
     me = obj.data
     assert len(me.vertices) == 60
     assert 29 <= len(me.polygons) <= 60
@@ -143,10 +143,10 @@ def test_operator_on_edit_mode_chains(fresh_scene):
     bpy.context.collection.objects.link(obj)
     _select([obj], obj)
     bpy.ops.object.mode_set(mode="EDIT")
-    result = bpy.ops.devloft.loft(samples=12)
+    result = bpy.ops.mino.loft(samples=12)
     assert result == {"FINISHED"}
     assert bpy.context.mode == "EDIT_MESH"
-    out = bpy.data.objects["DevLoft"]
+    out = bpy.data.objects["Mino"]
     assert len(out.data.vertices) == 24
     assert "twist" in out.data.attributes
     bpy.ops.object.mode_set(mode="OBJECT")
@@ -160,17 +160,17 @@ def test_operator_errors_on_bad_selection(fresh_scene):
     a = _make_arc_curve("A", 1.0, 0.0)
     _select([a], a)
     with pytest.raises(RuntimeError):
-        bpy.ops.devloft.loft()
-    assert "DevLoft" not in bpy.data.objects
+        bpy.ops.mino.loft()
+    assert "Mino" not in bpy.data.objects
 
 
 def test_operator_on_poly_curves(fresh_scene):
     a = _make_poly_arc_curve("A", 1.0, 0.0)
     b = _make_poly_arc_curve("B", 1.0, 1.0)
     _select([a, b], a)
-    result = bpy.ops.devloft.loft(samples=20)
+    result = bpy.ops.mino.loft(samples=20)
     assert result == {"FINISHED"}
-    obj = bpy.data.objects["DevLoft"]
+    obj = bpy.data.objects["Mino"]
     me = obj.data
     assert len(me.vertices) == 40
     assert "twist" in me.attributes
@@ -183,13 +183,13 @@ def test_operator_on_nurbs_curves(fresh_scene):
     b = _make_nurbs_arc_curve("B", 1.0, 1.0)
     _select([a, b], a)
     try:
-        result = bpy.ops.devloft.loft(samples=20)
+        result = bpy.ops.mino.loft(samples=20)
     except RuntimeError:
         a.data.resolution_u = 12
         b.data.resolution_u = 12
-        result = bpy.ops.devloft.loft(samples=20)
+        result = bpy.ops.mino.loft(samples=20)
     assert result == {"FINISHED"}
-    obj = bpy.data.objects["DevLoft"]
+    obj = bpy.data.objects["Mino"]
     assert len(obj.data.vertices) == 40
 
 
@@ -199,5 +199,5 @@ def test_operator_rejects_multi_spline_curve(fresh_scene):
     a.data.splines.new("POLY")
     _select([a, b], a)
     with pytest.raises(RuntimeError):
-        bpy.ops.devloft.loft(samples=20)
-    assert "DevLoft" not in bpy.data.objects
+        bpy.ops.mino.loft(samples=20)
+    assert "Mino" not in bpy.data.objects

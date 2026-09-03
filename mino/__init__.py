@@ -1,4 +1,4 @@
-"""DevLoft: developable loft between two rails.
+"""Mino: developable loft between two rails.
 
 The core package is importable without Blender. The Blender layer is only
 imported inside register()/unregister() so tests can run on plain Python.

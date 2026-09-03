@@ -1,7 +1,7 @@
 import numpy as np
 
-from devloft.core.rails import Rail
-from devloft.core.twist import ruling_lengths, twist_matrix
+from mino.core.rails import Rail
+from mino.core.twist import ruling_lengths, twist_matrix
 
 
 def _rail(points, tangents):

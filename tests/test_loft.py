@@ -3,8 +3,8 @@ import json
 import numpy as np
 import pytest
 
-from devloft.core import LoftError, LoftParams, loft
-from devloft.core.export import result_to_dict
+from mino.core import LoftError, LoftParams, loft
+from mino.core.export import result_to_dict
 from tests.cases import CASES, OFFSET_STEPS
 
 

@@ -1,4 +1,4 @@
-"""Build dist/devloft-<version>.zip for Install from Disk in Blender 4.2+."""
+"""Build dist/mino-<version>.zip for Install from Disk in Blender 4.2+."""
 from __future__ import annotations
 
 import tomllib
@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "devloft"
+SRC = ROOT / "mino"
 
 
 def build(dist_dir: Path = ROOT / "dist") -> Path:

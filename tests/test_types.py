@@ -1,6 +1,6 @@
 import numpy as np
-from devloft.core.types import LoftParams, Rail, Report
-from devloft.core.errors import LoftError
+from mino.core.types import LoftParams, Rail, Report
+from mino.core.errors import LoftError
 
 
 def test_default_params():

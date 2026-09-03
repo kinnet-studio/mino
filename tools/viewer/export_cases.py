@@ -13,8 +13,8 @@ ROOT = HERE.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from devloft.core import LoftParams, loft  # noqa: E402
-from devloft.core.export import result_to_dict  # noqa: E402
+from mino.core import LoftParams, loft  # noqa: E402
+from mino.core.export import result_to_dict  # noqa: E402
 from tests.cases import CASES  # noqa: E402
 
 
@@ -34,7 +34,7 @@ def main(out_dir: Path = HERE) -> list[Path]:
         written.append(path)
         print(f"{name}: {data['report']}")
     js = out_dir / "data.js"
-    js.write_text("window.DEVLOFT_CASES = " + json.dumps(payload) + ";\n")
+    js.write_text("window.MINO_CASES = " + json.dumps(payload) + ";\n")
     written.append(js)
     return written
 

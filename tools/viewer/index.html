@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>DevLoft viewer</title>
+<title>Mino viewer</title>
 <style>
   html, body { margin: 0; height: 100%; font: 13px/1.4 -apple-system, system-ui, sans-serif; background: #1e1e22; color: #ddd; }
   #app { display: flex; height: 100%; }
@@ -27,7 +27,7 @@
 <body>
 <div id="app">
   <div id="sidebar">
-    <h1>DevLoft viewer</h1>
+    <h1>Mino viewer</h1>
     <h2>Cases</h2>
     <div id="cases"></div>
     <input type="file" id="file" accept=".json">
@@ -53,7 +53,7 @@
     document.getElementById('view').innerHTML = '<p style="padding:20px">three.js failed to load (offline?).</p>';
     return;
   }
-  const cases = (window.DEVLOFT_CASES || []).slice();
+  const cases = (window.MINO_CASES || []).slice();
   const view = document.getElementById('view');
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);

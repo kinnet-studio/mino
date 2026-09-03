@@ -1,7 +1,7 @@
 import numpy as np
 
-from devloft.core.mesh import mesh_area
-from devloft.core.unfold import unfold_strip
+from mino.core.mesh import mesh_area
+from mino.core.unfold import unfold_strip
 
 
 def _box_strip():
@@ -46,7 +46,7 @@ def test_unfold_bent_quad_loses_area():
 
 
 def test_flatten_face_survives_degenerate_first_edge():
-    from devloft.core.unfold import _flatten_face
+    from mino.core.unfold import _flatten_face
     P = np.array([[0, 0, 0], [0, 0, 0], [1, 1, 0], [1, 0, 0]], float)
     local = _flatten_face(P)
     assert local.shape == (4, 2)

@@ -1,6 +1,6 @@
 import numpy as np
 
-from devloft.core.mesh import (best_diagonal, build_faces, face_planarity, mesh_area, planarize,
+from mino.core.mesh import (best_diagonal, build_faces, face_planarity, mesh_area, planarize,
                                quad_planarity, split_quads)
 
 

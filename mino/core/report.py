@@ -27,7 +27,7 @@ def _fmt_range(r):
 
 def format_report(report: Report, ranges) -> str:
     mx = "inf" if not np.isfinite(report.max_twist) else f"{report.max_twist:.1f}"
-    parts = [f"DevLoft: {report.ruling_count} rulings", f"max twist {mx} deg"]
+    parts = [f"Mino: {report.ruling_count} rulings", f"max twist {mx} deg"]
     if ranges:
         parts.append(f"{report.failing_ruling_count} over {report.twist_tolerance:.1f} deg at rulings "
                      + ", ".join(_fmt_range(r) for r in ranges))

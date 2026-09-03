@@ -1,8 +1,8 @@
 schema_version = "1.0.0"
 
-id = "devloft"
+id = "mino"
 version = "0.1.0"
-name = "DevLoft"
+name = "Mino"
 tagline = "Developable loft between two rails for papercraft"
 maintainer = "Vincent Chang"
 type = "add-on"
