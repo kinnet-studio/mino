@@ -1,6 +1,6 @@
 import numpy as np
 
-from devloft.core.mesh import (build_faces, face_planarity, mesh_area, planarize,
+from devloft.core.mesh import (best_diagonal, build_faces, face_planarity, mesh_area, planarize,
                                quad_planarity, split_quads)
 
 
@@ -69,6 +69,22 @@ def test_split_quads_keep_strip_adjacency():
         assert split.any()
         for f, g in zip(out, out[1:]):
             assert len(set(f) & set(g)) == 2
+
+
+def test_best_diagonal_avoids_degenerate_triangle_when_possible():
+    # v0 and v2 (opposite quad corners) coincide, so the diagonal split at
+    # (v0, v2) collapses both its triangles to zero area; the other split
+    # at (v1, v3) stays non-degenerate. best_diagonal must not return a
+    # degenerate triangle when a fully non-degenerate option exists.
+    v = np.array([[0, 0, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0.5]], float)
+
+    def is_degenerate(tri):
+        p0, p1, p2 = v[list(tri)]
+        return np.linalg.norm(np.cross(p1 - p0, p2 - p0)) < 1e-12
+
+    tris = best_diagonal(v, (0, 1, 2, 3))
+    degenerate = [is_degenerate(t) for t in tris]
+    assert not any(degenerate)
 
 
 def test_mesh_area():

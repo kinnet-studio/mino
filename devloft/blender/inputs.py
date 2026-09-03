@@ -116,6 +116,7 @@ def edit_mode_rails(obj):
     import bmesh
 
     bm = bmesh.from_edit_mesh(obj.data)
+    bm.verts.index_update()
     bm.verts.ensure_lookup_table()
     edges = [(e.verts[0].index, e.verts[1].index) for e in bm.edges if e.select]
     if not edges:

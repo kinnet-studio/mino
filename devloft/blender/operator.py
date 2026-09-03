@@ -63,8 +63,11 @@ class DEVLOFT_OT_loft(bpy.types.Operator):
         output.create_strip_object(context, result, "DevLoft", params.twist_tolerance)
         if self.export_json:
             path = bpy.path.abspath(self.export_json)
-            with open(path, "w", encoding="utf-8") as fh:
-                json.dump(result_to_dict(result, pa, pb, "blender", params), fh)
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(result_to_dict(result, pa, pb, "blender", params), fh)
+            except OSError as exc:
+                self.report({"WARNING"}, f"Could not write {path}: {exc}")
         summary = format_report(result.report, result.failing_ranges)
         self.report({"INFO"}, summary)
         if result.failing_ranges:

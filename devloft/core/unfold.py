@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .errors import LoftError
 from .rails import normalize_rows
 
 
@@ -75,7 +76,7 @@ def unfold_strip(verts, faces):
         else:
             shared = [v for v in f if v in prev_face]
             if len(shared) < 2:
-                raise ValueError("consecutive faces must share an edge")
+                raise LoftError("consecutive faces must share an edge")
             a, b = shared[0], shared[1]
             placed = _place(local, f.index(a), f.index(b),
                             prev_2d[prev_face.index(a)], prev_2d[prev_face.index(b)],

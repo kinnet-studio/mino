@@ -78,6 +78,11 @@ def _tri_normal(verts, tri):
 
 def _dihedral(verts, tris):
     n0, n1 = _tri_normal(verts, tris[0]), _tri_normal(verts, tris[1])
+    if not n0.any() or not n1.any():
+        # A degenerate (zero-area) triangle has no normal; treat this
+        # diagonal option as maximally bad so it never wins over a
+        # non-degenerate alternative.
+        return float("inf")
     return float(np.degrees(np.arccos(np.clip(np.dot(n0, n1), -1.0, 1.0))))
 
 
