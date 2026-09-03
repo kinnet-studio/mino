@@ -156,3 +156,36 @@ def test_split_quads_default_is_per_quad():
     a, _, _ = split_quads(v, faces, face_planarity(v, faces), tolerance=0.01)
     b, _, _ = split_quads(v, faces, face_planarity(v, faces), tolerance=0.01, consistent=False)
     assert a == b
+
+
+def test_split_quads_consistent_runs_are_independent():
+    # two runs separated by a flat quad; bend them so they prefer opposite diagonals
+    n_a = 7
+    v = np.array([[i, 0.0, 0.0] for i in range(n_a)] + [[i, 1.0, 0.0] for i in range(n_a)], float)
+    v[8, 2] = 0.3            # B[1]: bends quads 0 and 1 (run 1)
+    v[5, 2] = -0.3           # A[5]: bends quads 4 and 5 (run 2)
+    faces = [(i, i + 1, n_a + i + 1, n_a + i) for i in range(n_a - 1)]
+    pl = face_planarity(v, faces)
+    assert [k for k in range(len(faces)) if pl[k] > 0.01] == [0, 1, 4, 5]
+    out, src, split = split_quads(v, faces, pl, tolerance=0.01, consistent=True)
+    pairs = list(_split_pairs(out, split))
+    assert len(pairs) == 4
+    run1 = {_orientation(a, n_a) for a, b in pairs[:2]}
+    run2 = {_orientation(a, n_a) for a, b in pairs[2:]}
+    assert len(run1) == 1 and len(run2) == 1
+    # each run independently matches what its own totals prefer
+    from mino.core.mesh import _dihedral, _option_a, _option_b
+    for run, quads in ((run1, faces[0:2]), (run2, faces[4:6])):
+        cost_a = sum(_dihedral(v, _option_a(f)) for f in quads)
+        cost_b = sum(_dihedral(v, _option_b(f)) for f in quads)
+        assert run == {"A" if cost_a <= cost_b else "B"}
+
+
+def test_split_quads_consistent_falls_back_when_both_options_degenerate():
+    # a quad with two coincident corners makes both options degenerate (inf)
+    v = np.array([[0, 0, 0], [1, 0, 0], [1, 0, 0], [0, 1, 0.3]], float)
+    faces = [(0, 1, 2, 3)]
+    pl = np.array([0.5])
+    out_c, _, split_c = split_quads(v, faces, pl, tolerance=0.01, consistent=True)
+    out_p, _, split_p = split_quads(v, faces, pl, tolerance=0.01, consistent=False)
+    assert out_c == out_p and list(split_c) == list(split_p)

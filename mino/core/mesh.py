@@ -124,6 +124,9 @@ def _consistent_choices(verts, faces, needs_split):
             run.append(k)
         cost_a = sum(_dihedral(verts, _option_a(faces[q])) for q in run)
         cost_b = sum(_dihedral(verts, _option_b(faces[q])) for q in run)
+        if not np.isfinite(cost_a) and not np.isfinite(cost_b):
+            k += 1
+            continue
         pick = _option_a if cost_a <= cost_b else _option_b
         for q in run:
             choice[q] = pick(faces[q])
