@@ -33,10 +33,11 @@ def offset_cylinder(n=200):
                 params=dict(samples=OFFSET_SAMPLES, window=8))
 
 
-def twisted(n=200):
+def twisted(n=200, scale=1.2):
+    """B is a slowly rolling copy of A; scale=0.3 is the mild case (max twist about 8.5 deg)."""
     t = np.linspace(0.0, 4.0, n)
-    phi = 1.2 * (t / 4.0) ** 2
-    dphi = 0.15 * t
+    phi = scale * (t / 4.0) ** 2
+    dphi = 2.0 * scale * t / 16.0
     a = np.column_stack([t, np.zeros(n), np.zeros(n)])
     ta = np.column_stack([np.ones(n), np.zeros(n), np.zeros(n)])
     b = np.column_stack([t, np.sin(phi), np.cos(phi)])
