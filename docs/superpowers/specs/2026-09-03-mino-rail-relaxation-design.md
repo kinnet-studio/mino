@@ -21,6 +21,8 @@ rulings `path = [(i, j), ...]` from the current loft, `LoftParams`, and:
 - `margin`: degrees below `twist_tolerance` that the solver aims for (default 0.5, min 0), so the re-loft lands strictly inside tolerance rather than on its edge.
 - `iterations`: gradient steps (default 800; a pinned end couples its tangent to two neighbours through the second-order end formula, which roughly doubles the steps the mild case needs).
 - `pin_endpoints`: keep `B[0]` and `B[N-1]` fixed (default True).
+- `max_seconds`: wall-clock budget for the loop, 0 for no limit (default 0 in the core, 10 in the operator).
+- `progress`: optional callback `progress(step, iterations)` invoked after every accepted step.
 
 Variables: `δ ∈ R^N`, one scalar per B point, moving `B'[j] = B[j] + δ_j·n_j`
 where `n_j` is the local strip normal at B: `normalize(T_B[j] × R)` with `R`
@@ -82,10 +84,11 @@ class RelaxResult:
     twist_after: float         # max twist of the re-loft
     result: StripResult        # loft(A, B')
     iterations_run: int
+    stop_reason: str           # noop | converged | stalled | line_search | iterations | time
 
 def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params,
                  max_move=0.05, smoothness=1.0, margin=0.5, iterations=800,
-                 pin_endpoints=True) -> RelaxResult
+                 pin_endpoints=True, max_seconds=0.0, progress=None) -> RelaxResult
 ```
 `relax_rail_b` first runs `loft` to obtain the rails and `path`, then
 optimizes, then re-lofts.
@@ -95,8 +98,11 @@ optimizes, then re-lofts.
 `mino.relax` operator, Object Mode, active object must carry
 `mino_rails`. Properties: `max_move` 0..0.5 default 0.05, `smoothness`
 0..10 default 1.0, `margin` 0..5 default 0.5, `iterations` 10..1000
-default 800 (max 2000), `pin_endpoints` default True, and `diagnose` default True
-like the other remedies. It:
+default 800 (max 2000), `max_seconds` 0..120 default 10, `pin_endpoints`
+default True, and `diagnose` default True like the other remedies. It drives
+Blender's cursor progress from the solver's callback and, when the budget
+stopped the loop, appends "stopped at the {max_seconds} s budget after N
+steps" to its report. It:
 
 1. Reads the stored rails and params.
 2. Runs `relax_rail_b`.
@@ -136,7 +142,7 @@ tests/test_relax.py tests/test_blender_relax.py
 
 - Local minima: gradient descent on a non-convex twist objective can stall. The smoothness term and small steps make the common bow-flare case behave; if it stalls, the report shows the residual twist honestly.
 - Moving along the strip normal changes ruling lengths slightly; the DP re-loft absorbs that.
-- Numeric gradients cost about 2N evaluations per step; at samples 60 and 400 iterations this is about two seconds, at samples 400 it can take tens of seconds. Acceptable for a remedy button; the operator reports only at the end. The early stops (objective zero, stall) usually end it far sooner.
+- Numeric gradients cost about 2N evaluations per step; at samples 60 and 800 iterations this is about six seconds, at samples 400 it would take minutes, so the operator's 10 s default budget bounds it and the cursor shows progress. The early stops (objective zero, stall) usually end it far sooner.
 
 ## 7. Spike record (2026-09-04)
 

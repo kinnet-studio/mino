@@ -1,6 +1,7 @@
 """Rail relaxation: move rail B a bounded amount along the strip normal until the loft is developable."""
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -82,12 +83,18 @@ class RelaxResult:
     result: StripResult
     iterations_run: int
     objective: list = field(default_factory=list)
+    stop_reason: str = "noop"  # noop | converged | stalled | line_search | iterations | time
 
 
 def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams | None = None,
                  max_move: float = 0.05, smoothness: float = 1.0, margin: float = 0.5,
-                 iterations: int = 800, pin_endpoints: bool = True) -> RelaxResult:
-    """Move rail B along the strip normal, bounded by max_move x mean ruling, to reduce twist."""
+                 iterations: int = 800, pin_endpoints: bool = True,
+                 max_seconds: float = 0.0, progress=None) -> RelaxResult:
+    """Move rail B along the strip normal, bounded by max_move x mean ruling, to reduce twist.
+
+    max_seconds > 0 stops the loop once that wall-clock budget is spent (0 means no limit);
+    progress(step, iterations) is called after every accepted step.
+    """
     params = params or LoftParams()
     base = loft(points_a, points_b, params, tangents_a, tangents_b)
     rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b)
@@ -118,13 +125,17 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
     delta = np.zeros(n)
     history = [objective(delta)]
     iterations_run = 0
+    stop_reason = "noop"
 
     if bound > 0.0 and history[0] > 0.0:
+        deadline = time.monotonic() + max_seconds if max_seconds > 0 else None
         h = 1e-4 * bound
         grad = numeric_gradient(objective, delta, free, h)
         alpha = bound / max(float(np.linalg.norm(grad)), 1e-12)
+        stop_reason = "iterations"
         for it in range(iterations):
             if history[-1] == 0.0 or not np.any(grad):
+                stop_reason = "converged"
                 break
             step, accepted = alpha, None
             for _ in range(MAX_HALVINGS):
@@ -135,6 +146,7 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
                     break
                 step *= 0.5
             if accepted is None:
+                stop_reason = "line_search"
                 break
             cand, fc = accepted
             new_grad = numeric_gradient(objective, cand, free, h)
@@ -149,10 +161,19 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
             delta, grad = cand, new_grad
             history.append(fc)
             iterations_run = it + 1
+            if progress is not None:
+                progress(iterations_run, iterations)
+            if fc == 0.0:
+                stop_reason = "converged"
+                break
             if len(history) > STALL_WINDOW:
                 before = history[-1 - STALL_WINDOW]
                 if (before - history[-1]) / max(before, 1e-12) < STALL_REL:
+                    stop_reason = "stalled"
                     break
+            if deadline is not None and time.monotonic() > deadline:
+                stop_reason = "time"
+                break
 
     moved = rail_b.points + delta[:, None] * normals
     tangents_b = moved_tangents_b(rail_b, moved)
@@ -161,5 +182,5 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
         points_b=moved, tangents_b=tangents_b, delta=delta, max_move_used=float(np.abs(delta).max()),
         mean_ruling=mean_ruling, twist_before=base.report.max_twist,
         twist_after=result.report.max_twist, result=result,
-        iterations_run=iterations_run, objective=history,
+        iterations_run=iterations_run, objective=history, stop_reason=stop_reason,
     )

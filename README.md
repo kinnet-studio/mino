@@ -53,6 +53,8 @@ suggestions and a button for each:
   nudge mesh vertices by up to Max Nudge, so the Max Move bound applies to
   the rail, not the final mesh. If the twist is still over tolerance, raise
   Max Move or subdivide instead.
+  Max Seconds (default 10, 0 for no limit) caps the solve; the report says
+  when the budget stopped it early.
 - Creases: with Consistent Creases on, split diagonals run in one
   direction per run.
 

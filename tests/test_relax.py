@@ -194,3 +194,34 @@ def test_degenerate_ruling_counts_as_ninety_degrees():
     f, twists = relax_objective(np.zeros(3), a, b, normals, path, target=5.0, smoothness=1.0)
     assert np.isinf(twists[0]) and np.isfinite(twists[1:]).all()
     assert np.isclose(f, (90.0 - 5.0) ** 2 + float((np.maximum(0.0, twists[1:] - 5.0) ** 2).sum()))
+
+
+def test_stop_reason_names_why_the_loop_ended():
+    _, _, noop = _relax("cylinder")
+    assert noop.stop_reason == "noop"
+    _, _, capped = _relax("twisted", max_move=0.15, iterations=20)
+    assert capped.stop_reason == "iterations" and capped.iterations_run == 20
+    _, _, zero = _relax("twisted", max_move=0.0)
+    assert zero.stop_reason == "noop"
+
+
+def test_time_budget_stops_the_loop_early():
+    import time
+    t0 = time.monotonic()
+    _, _, r = _relax("twisted", scale=0.3, max_move=0.15, max_seconds=0.05)
+    elapsed = time.monotonic() - t0
+    assert r.stop_reason == "time"
+    assert 0 < r.iterations_run < 100
+    assert elapsed < 2.0            # the budget bounds the loop, the two lofts around it are cheap
+    assert all(b <= a for a, b in zip(r.objective, r.objective[1:]))
+
+
+def test_zero_time_budget_means_unlimited():
+    _, _, r = _relax("twisted", max_move=0.15, iterations=30, max_seconds=0.0)
+    assert r.stop_reason == "iterations" and r.iterations_run == 30
+
+
+def test_progress_callback_sees_every_accepted_step():
+    seen = []
+    _, _, r = _relax("twisted", max_move=0.15, iterations=25, progress=lambda it, total: seen.append((it, total)))
+    assert seen == [(k, 25) for k in range(1, r.iterations_run + 1)]

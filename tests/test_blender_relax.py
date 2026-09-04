@@ -100,3 +100,9 @@ def test_relax_requires_a_mino_object(fresh_scene):
     a = _make_poly_curve("A", case["points_a"])
     _select([a], a)
     assert not bpy.ops.mino.relax.poll()
+
+
+def test_relax_accepts_a_time_budget(fresh_scene):
+    obj = _loft(CASES["twisted"](n=60))
+    assert bpy.ops.mino.relax(max_seconds=0.01) == {"FINISHED"}
+    assert "Mino.relaxed" in bpy.data.objects and "Mino.railB.relaxed" in bpy.data.objects

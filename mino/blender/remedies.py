@@ -231,6 +231,8 @@ class MINO_OT_relax(_MinoRemedy, bpy.types.Operator):
     margin: FloatProperty(name="Margin", default=0.5, min=0.0, max=5.0,
                           description="Degrees below Twist Tolerance the solver aims for")
     iterations: IntProperty(name="Iterations", default=800, min=10, max=2000)
+    max_seconds: FloatProperty(name="Max Seconds", default=10.0, min=0.0, max=120.0,
+                               description="Stop the solver after this many seconds (0 = no limit)")
     pin_endpoints: BoolProperty(name="Pin Endpoints", default=True,
                                 description="Keep the two ends of rail B where they are")
     diagnose: BoolProperty(name="Diagnose", default=True,
@@ -240,8 +242,15 @@ class MINO_OT_relax(_MinoRemedy, bpy.types.Operator):
         obj = context.active_object
         try:
             pa, ta, pb, tb, params = load_inputs(obj)
-            res = relax_rail_b(pa, pb, ta, tb, params, max_move=self.max_move, smoothness=self.smoothness,
-                               margin=self.margin, iterations=self.iterations, pin_endpoints=self.pin_endpoints)
+            wm = context.window_manager
+            wm.progress_begin(0, self.iterations)
+            try:
+                res = relax_rail_b(pa, pb, ta, tb, params, max_move=self.max_move, smoothness=self.smoothness,
+                                   margin=self.margin, iterations=self.iterations,
+                                   pin_endpoints=self.pin_endpoints, max_seconds=self.max_seconds,
+                                   progress=lambda step, total: wm.progress_update(step))
+            finally:
+                wm.progress_end()
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
@@ -251,6 +260,8 @@ class MINO_OT_relax(_MinoRemedy, bpy.types.Operator):
         pct = 100.0 * res.max_move_used / res.mean_ruling if res.mean_ruling > 0 else 0.0
         msg = (f"Mino: relaxed rail B, max twist {res.twist_before:.1f} -> {res.twist_after:.1f} deg, "
                f"largest move {res.max_move_used:.3g} ({pct:.0f}% of mean ruling)")
+        if res.stop_reason == "time":
+            msg += f"; stopped at the {self.max_seconds:.0f} s budget after {res.iterations_run} steps"
         if res.result.failing_ranges:
             self.report({"WARNING"}, msg + "; still over tolerance, raise Max Move or subdivide into strakes")
         else:
