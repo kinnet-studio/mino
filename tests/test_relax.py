@@ -36,8 +36,9 @@ def test_objective_is_zero_when_within_target_and_unmoved():
     delta = np.zeros(len(rb.points))
     f, twists = relax_objective(delta, ra, rb, normals, path, target=5.0, smoothness=1.0)
     assert f == 0.0
-    # nothing moved, so the supplied tangents are kept and the twists match the loft's exactly
-    assert np.allclose(twists, res.ruling_twist, atol=1e-6)
+    # nothing moved, so the supplied tangents are kept and the twists match the loft's; arccos
+    # near zero twist amplifies machine epsilon to about 1e-6 deg, hence the margin
+    assert np.allclose(twists, res.ruling_twist, atol=1e-4)
 
 
 def test_objective_counts_twist_over_target_squared():

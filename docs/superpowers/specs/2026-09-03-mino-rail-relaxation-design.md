@@ -97,8 +97,8 @@ optimizes, then re-lofts.
 
 `mino.relax` operator, Object Mode, active object must carry
 `mino_rails`. Properties: `max_move` 0..0.5 default 0.05, `smoothness`
-0..10 default 1.0, `margin` 0..5 default 0.5, `iterations` 10..1000
-default 800 (max 2000), `max_seconds` 0..120 default 10, `pin_endpoints`
+0..10 default 1.0, `margin` 0..5 default 0.5, `iterations` 10..2000
+default 800, `max_seconds` 0..120 default 10, `pin_endpoints`
 default True, and `diagnose` default True like the other remedies. It drives
 Blender's cursor progress from the solver's callback and, when the budget
 stopped the loop, appends "stopped at the {max_seconds} s budget after N
