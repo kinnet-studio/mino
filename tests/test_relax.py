@@ -1,9 +1,9 @@
 import numpy as np
-import pytest
 
 from mino.core import LoftParams, loft
-from mino.core.rails import prepare_rails
-from mino.core.relax import numeric_gradient, relax_objective, strip_normals_b
+from mino.core.rails import central_difference, normalize_rows, prepare_rails
+from mino.core.relax import moved_tangents_b, numeric_gradient, relax_objective, strip_normals_b
+from mino.core.types import Rail
 from tests.cases import CASES
 
 
@@ -99,9 +99,9 @@ def test_developable_strip_is_left_alone():
     ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples,
                            case["tangents_a"], case["tangents_b"])
     assert np.allclose(r.points_b, rb.points, atol=1e-9)
-    # the re-loft derives B tangents by central difference; its one-sided end formula drifts about 1.5 deg
     assert r.result.failing_ranges == []
-    assert abs(r.twist_after - r.twist_before) < 2.0
+    # same tangent convention on both sides, so a developable strip measures the same twice
+    assert abs(r.twist_after - r.twist_before) < 1e-3
 
 
 def test_bounds_and_pins_are_respected():
@@ -143,7 +143,7 @@ def test_full_twisted_case_improves_monotonically():
 
 def test_result_matches_reloft_of_returned_rail():
     case, params, r = _relax("twisted", scale=0.3, max_move=0.15)
-    again = loft(case["points_a"], r.points_b, params, case["tangents_a"], None)
+    again = loft(case["points_a"], r.points_b, params, case["tangents_a"], r.tangents_b)
     assert np.allclose(again.verts, r.result.verts)
     assert again.rulings == r.result.rulings
 
@@ -151,4 +151,47 @@ def test_result_matches_reloft_of_returned_rail():
 def test_zero_max_move_is_a_noop():
     case, params, r = _relax("twisted", max_move=0.0)
     assert r.iterations_run == 0 and r.max_move_used == 0.0
-    assert abs(r.twist_after - r.twist_before) < 2.0
+    assert abs(r.twist_after - r.twist_before) < 1e-3
+
+
+def test_relaxation_is_scale_invariant():
+    # the smoothness term is dimensionless, so the same design in millimetres relaxes the same way
+    case = CASES["twisted"](scale=0.3)
+    params = LoftParams(**case["params"])
+    unit = relax_rail_b(case["points_a"], case["points_b"], case["tangents_a"], case["tangents_b"],
+                        params, max_move=0.15)
+    big = relax_rail_b(1000.0 * case["points_a"], 1000.0 * case["points_b"], case["tangents_a"],
+                       case["tangents_b"], params, max_move=0.15)
+    assert big.result.failing_ranges == []
+    assert abs(big.twist_after - unit.twist_after) < 0.1
+    assert abs(big.max_move_used / big.mean_ruling - unit.max_move_used / unit.mean_ruling) < 0.005
+
+
+def test_exact_tangents_survive_low_sample_counts():
+    # central-difference end tangents alone would invent about 7 deg of twist at 8 samples
+    case = CASES["cylinder"]()
+    params = LoftParams(**{**case["params"], "samples": 8})
+    r = relax_rail_b(case["points_a"], case["points_b"], case["tangents_a"], case["tangents_b"], params)
+    assert r.twist_before < params.twist_tolerance
+    assert r.iterations_run == 0 and r.max_move_used < 1e-9
+    assert abs(r.twist_after - r.twist_before) < 1e-3
+    assert r.result.failing_ranges == []
+
+
+def test_moved_tangents_reduce_to_central_difference_without_exact_tangents():
+    case = CASES["twisted"]()
+    params = LoftParams(**case["params"])
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples, None, None)
+    moved = rb.points + 0.01 * np.random.default_rng(3).normal(size=rb.points.shape)
+    assert np.allclose(moved_tangents_b(rb, moved), normalize_rows(central_difference(moved)), atol=1e-12)
+    assert np.allclose(moved_tangents_b(rb, rb.points), rb.tangents, atol=1e-12)
+
+
+def test_degenerate_ruling_counts_as_ninety_degrees():
+    a = Rail(np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]), np.array([[1.0, 0.0, 0.0]] * 3))
+    b = Rail(np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [2.0, 0.0, 1.0]]), np.array([[1.0, 0.0, 0.0]] * 3))
+    path = np.array([[0, 0], [1, 1], [2, 2]])
+    normals = strip_normals_b(a, b, path)
+    f, twists = relax_objective(np.zeros(3), a, b, normals, path, target=5.0, smoothness=1.0)
+    assert np.isinf(twists[0]) and np.isfinite(twists[1:]).all()
+    assert np.isclose(f, (90.0 - 5.0) ** 2 + float((np.maximum(0.0, twists[1:] - 5.0) ** 2).sum()))

@@ -26,17 +26,32 @@ def strip_normals_b(rail_a: Rail, rail_b: Rail, path) -> np.ndarray:
     return normals
 
 
-def relax_objective(delta, rail_a: Rail, rail_b: Rail, normals, path, target: float, smoothness: float):
-    """(F, twists) for rail B moved by delta along `normals`, twist evaluated on the fixed `path`."""
+def moved_tangents_b(rail_b: Rail, moved: np.ndarray) -> np.ndarray:
+    """Tangents of the moved rail: the supplied tangents plus the central-difference change.
+
+    Returns rail_b.tangents exactly when nothing moved, so exact (Bezier) tangents are kept;
+    when rail_b.tangents came from central differences this reduces to those of `moved`.
+    """
+    before = normalize_rows(central_difference(rail_b.points))
+    after = normalize_rows(central_difference(moved))
+    return normalize_rows(rail_b.tangents + after - before)
+
+
+def relax_objective(delta, rail_a: Rail, rail_b: Rail, normals, path, target: float, smoothness: float,
+                    length_scale: float = 1.0):
+    """(F, twists) for rail B moved by delta along `normals`, twist evaluated on the fixed `path`.
+
+    smoothness is dimensionless: the move differences are measured in units of `length_scale`.
+    """
     path = np.asarray(path, dtype=int)
     i, j = path[:, 0], path[:, 1]
     moved = rail_b.points + np.asarray(delta, dtype=float)[:, None] * normals
-    tangents = normalize_rows(central_difference(moved))
+    tangents = moved_tangents_b(rail_b, moved)
     twists = paired_twist(rail_a.points[i], rail_a.tangents[i], moved[j], tangents[j])
     finite = np.where(np.isfinite(twists), twists, INF_TWIST)
     hinge = np.maximum(0.0, finite - target)
-    smooth = float((np.diff(delta) ** 2).sum())
-    return float((hinge ** 2).sum() + smoothness * smooth), twists
+    smooth = smoothness * float((np.diff(delta) ** 2).sum()) / length_scale ** 2
+    return float((hinge ** 2).sum() + smooth), twists
 
 
 def numeric_gradient(f, x, free, h: float) -> np.ndarray:
@@ -58,6 +73,7 @@ MAX_HALVINGS = 30
 @dataclass
 class RelaxResult:
     points_b: np.ndarray
+    tangents_b: np.ndarray  # tangents of the moved rail B, (N, 3)
     delta: np.ndarray
     max_move_used: float
     mean_ruling: float
@@ -88,8 +104,11 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
     if pin_endpoints:
         free[0] = free[-1] = False
 
+    length_scale = mean_ruling if mean_ruling > 0 else 1.0
+
     def objective(d):
-        return relax_objective(d, rail_a, rail_b, normals, path, target, smoothness)[0]
+        return relax_objective(d, rail_a, rail_b, normals, path, target, smoothness,
+                               length_scale=length_scale)[0]
 
     def project(d):
         d = np.clip(d, -bound, bound)
@@ -121,7 +140,12 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
             new_grad = numeric_gradient(objective, cand, free, h)
             s, y = cand - delta, new_grad - grad
             sy = float(s @ y)
-            alpha = float(s @ s) / sy if sy > 1e-18 else 2.0 * step
+            # Spec says fall back when s.y <= 0; a relative epsilon also rejects a near-zero
+            # denominator that would produce a step no amount of halving walks back.
+            if sy > 1e-12 * float(np.linalg.norm(s)) * float(np.linalg.norm(y)):
+                alpha = float(s @ s) / sy
+            else:
+                alpha = 2.0 * step
             delta, grad = cand, new_grad
             history.append(fc)
             iterations_run = it + 1
@@ -131,9 +155,10 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
                     break
 
     moved = rail_b.points + delta[:, None] * normals
-    result = loft(points_a, moved, params, tangents_a, None)
+    tangents_b = moved_tangents_b(rail_b, moved)
+    result = loft(points_a, moved, params, tangents_a, tangents_b)
     return RelaxResult(
-        points_b=moved, delta=delta, max_move_used=float(np.abs(delta).max()),
+        points_b=moved, tangents_b=tangents_b, delta=delta, max_move_used=float(np.abs(delta).max()),
         mean_ruling=mean_ruling, twist_before=base.report.max_twist,
         twist_after=result.report.max_twist, result=result,
         iterations_run=iterations_run, objective=history,

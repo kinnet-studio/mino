@@ -246,13 +246,15 @@ class MINO_OT_relax(_MinoRemedy, bpy.types.Operator):
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
         output.create_curve_object(context, f"{obj.name}.railB.relaxed", res.points_b)
-        output.create_result_object(context, f"{obj.name}.relaxed", pa, ta, res.points_b, None, params,
+        output.create_result_object(context, f"{obj.name}.relaxed", pa, ta, res.points_b, res.tangents_b, params,
                                     res.result, self.diagnose)
         pct = 100.0 * res.max_move_used / res.mean_ruling if res.mean_ruling > 0 else 0.0
-        self.report({"INFO"}, f"Mino: relaxed rail B, max twist {res.twist_before:.1f} -> {res.twist_after:.1f} deg, "
-                              f"largest move {res.max_move_used:.3g} ({pct:.0f}% of mean ruling)")
+        msg = (f"Mino: relaxed rail B, max twist {res.twist_before:.1f} -> {res.twist_after:.1f} deg, "
+               f"largest move {res.max_move_used:.3g} ({pct:.0f}% of mean ruling)")
         if res.result.failing_ranges:
-            self.report({"WARNING"}, "Mino: still over tolerance; raise Max Move or subdivide into strakes")
+            self.report({"WARNING"}, msg + "; still over tolerance, raise Max Move or subdivide into strakes")
+        else:
+            self.report({"INFO"}, msg)
         return {"FINISHED"}
 
 

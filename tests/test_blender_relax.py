@@ -60,10 +60,11 @@ def test_relax_creates_curve_and_loft_objects(fresh_scene):
     spline = curve.data.splines[0]
     assert spline.type == "POLY" and len(spline.points) == 40
     assert curve.matrix_world == Matrix.Identity(4)
+    assert not curve.select_get()
 
     new = bpy.data.objects["Mino.relaxed"]
     rails = json.loads(new["mino_rails"])
-    assert len(rails["b"]) == 40 and rails["tb"] is None
+    assert len(rails["b"]) == 40 and len(rails["tb"]) == 40
     assert np.allclose(np.array(rails["a"]), np.array(json.loads(obj["mino_rails"])["a"]))
     curve_pts = np.array([p.co[:3] for p in spline.points])
     assert np.allclose(curve_pts, np.array(rails["b"]))

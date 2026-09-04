@@ -46,10 +46,13 @@ suggestions and a button for each:
   ruling and the wedge angle you should expect in the flat pattern. A
   ruled surface has non-positive curvature, so this is normally a gusset.
 - Relax rail B: move rail B by at most Max Move (a fraction of the mean
-  ruling length) along the strip so the loft becomes developable. You get
-  the moved rail as a new curve `<name>.railB.relaxed` to accept or reject,
-  plus the re-lofted strip `<name>.relaxed`. If the twist is still over
-  tolerance, raise Max Move or subdivide instead.
+  ruling length) along the strip normal so the loft becomes developable.
+  You get the moved rail as a new curve `<name>.railB.relaxed` (a resampled
+  polyline of Samples points, not the original control points) to accept
+  or reject, plus the re-lofted strip `<name>.relaxed`. Planarize may still
+  nudge mesh vertices by up to Max Nudge, so the Max Move bound applies to
+  the rail, not the final mesh. If the twist is still over tolerance, raise
+  Max Move or subdivide instead.
 - Creases: with Consistent Creases on, split diagonals run in one
   direction per run.
 
