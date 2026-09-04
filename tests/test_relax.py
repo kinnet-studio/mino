@@ -79,3 +79,76 @@ def test_numeric_gradient_on_quadratic():
     x = np.array([1.0, -2.0, 0.5])
     g = numeric_gradient(f, x, np.array([True, False, True]), h=1e-6)
     assert np.allclose(g, [2.0, 0.0, 1.0], atol=1e-6)
+
+
+from mino.core.relax import RelaxResult, relax_rail_b
+
+
+def _relax(name, scale=None, **kwargs):
+    case = CASES[name]() if scale is None else CASES[name](scale=scale)
+    params = LoftParams(**case["params"])
+    return case, params, relax_rail_b(case["points_a"], case["points_b"], case["tangents_a"],
+                                      case["tangents_b"], params, **kwargs)
+
+
+def test_developable_strip_is_left_alone():
+    case, params, r = _relax("cylinder")
+    assert isinstance(r, RelaxResult)
+    assert r.max_move_used < 1e-9
+    assert r.iterations_run == 0
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples,
+                           case["tangents_a"], case["tangents_b"])
+    assert np.allclose(r.points_b, rb.points, atol=1e-9)
+    # the re-loft derives B tangents by central difference; its one-sided end formula drifts about 1.5 deg
+    assert r.result.failing_ranges == []
+    assert abs(r.twist_after - r.twist_before) < 2.0
+
+
+def test_bounds_and_pins_are_respected():
+    case, params, r = _relax("twisted", max_move=0.05)
+    bound = 0.05 * r.mean_ruling
+    assert np.all(np.abs(r.delta) <= bound + 1e-12)
+    assert r.delta[0] == 0.0 and r.delta[-1] == 0.0
+    assert np.isclose(r.max_move_used, bound, atol=1e-9)   # the bound is active on this case
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples,
+                           case["tangents_a"], case["tangents_b"])
+    assert np.allclose(np.linalg.norm(r.points_b - rb.points, axis=1), np.abs(r.delta), atol=1e-9)
+
+
+def test_unpinned_endpoints_may_move():
+    case, params, r = _relax("twisted", max_move=0.05, pin_endpoints=False)
+    assert abs(r.delta[0]) > 0.0 or abs(r.delta[-1]) > 0.0
+
+
+def test_mild_case_reaches_tolerance_within_bound():
+    # Spike (spec section 7): twist_after about 4.6 deg, max_move_used about 0.065 of the mean ruling.
+    case, params, r = _relax("twisted", scale=0.3, max_move=0.15)
+    assert r.twist_before > params.twist_tolerance
+    assert r.result.failing_ranges == []
+    assert r.twist_after <= params.twist_tolerance
+    assert r.max_move_used / r.mean_ruling < 0.1
+    # BB descent lands near, not on, the hinge target (spike: objective 161 -> 0.3 in 400 steps)
+    assert r.objective[-1] < 0.01 * r.objective[0]
+
+
+def test_full_twisted_case_improves_monotonically():
+    case, params, r = _relax("twisted", max_move=0.15)
+    assert r.twist_after < r.twist_before
+    assert r.twist_before > 25.0                     # about 31 deg; documents the input
+    assert r.twist_after < 25.0                      # spike measured about 22 deg
+    assert all(b <= a for a, b in zip(r.objective, r.objective[1:]))
+    assert 0 < r.iterations_run <= 400
+    assert np.isclose(r.max_move_used, 0.15 * r.mean_ruling, atol=1e-9)
+
+
+def test_result_matches_reloft_of_returned_rail():
+    case, params, r = _relax("twisted", scale=0.3, max_move=0.15)
+    again = loft(case["points_a"], r.points_b, params, case["tangents_a"], None)
+    assert np.allclose(again.verts, r.result.verts)
+    assert again.rulings == r.result.rulings
+
+
+def test_zero_max_move_is_a_noop():
+    case, params, r = _relax("twisted", max_move=0.0)
+    assert r.iterations_run == 0 and r.max_move_used == 0.0
+    assert abs(r.twist_after - r.twist_before) < 2.0
