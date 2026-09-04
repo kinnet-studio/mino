@@ -114,7 +114,7 @@ feature also show it. The button runs `mino.relax` with its defaults.
 Core:
 - Gradient sanity: on a small random δ the finite-difference gradient of the smoothness term matches its analytic gradient `2λ·L δ` (L the 1D chain Laplacian over the N points, pinned rows zeroed) within 1e-6.
 - Bounds and pins: every `|δ_j| ≤ d`, endpoints exactly 0 when pinned.
-- Cylinder: relaxing a developable strip leaves `B` unchanged within 1e-9 (gradient is zero when no ruling exceeds tolerance) and `twist_after` equals `twist_before` within 1e-6; the same holds at `samples = 8`, the operator minimum, where central-difference end tangents alone would invent about 7° of twist.
+- Cylinder: relaxing a developable strip leaves `B` unchanged within 1e-9 (gradient is zero when no ruling exceeds tolerance) and `twist_after` equals `twist_before` within 1e-3 degrees (resampling round-off); the same holds at `samples = 8`, the operator minimum, where central-difference end tangents alone would invent about 7° of twist.
 - Scale invariance: the mild case scaled by 1000 relaxes to the same twist and the same move fraction as at unit scale.
 - Degenerate rulings count as 90° inside the objective: a hand-built path with one zero-length ruling gives `F = (90 − target)²`.
 - Mildly twisted pair (the twisted case with `phi = 0.3·(t/4)²`, max twist about 8.5°): with `max_move = 0.15` the re-loft has no failing rulings. The spike measured `twist_after` about 4.6° and `max_move_used` about 0.065 with the default margin; the test asserts no failing rulings and `max_move_used < 0.1`, and records the achieved numbers as documentation. If tolerance is not reached, the implementer stops and reports the numbers rather than loosening the assertion.
