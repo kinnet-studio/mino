@@ -86,7 +86,7 @@ class RelaxResult:
 
 def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams | None = None,
                  max_move: float = 0.05, smoothness: float = 1.0, margin: float = 0.5,
-                 iterations: int = 400, pin_endpoints: bool = True) -> RelaxResult:
+                 iterations: int = 800, pin_endpoints: bool = True) -> RelaxResult:
     """Move rail B along the strip normal, bounded by max_move x mean ruling, to reduce twist."""
     params = params or LoftParams()
     base = loft(points_a, points_b, params, tangents_a, tangents_b)

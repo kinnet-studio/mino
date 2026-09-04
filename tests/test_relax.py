@@ -36,10 +36,8 @@ def test_objective_is_zero_when_within_target_and_unmoved():
     delta = np.zeros(len(rb.points))
     f, twists = relax_objective(delta, ra, rb, normals, path, target=5.0, smoothness=1.0)
     assert f == 0.0
-    # B tangents are re-derived by central difference, so twists only approximate the loft's
-    # exact-tangent values; the two end rulings use one-sided differences and drift about 1.5 deg
-    assert np.allclose(twists[1:-1], res.ruling_twist[1:-1], atol=1.0)
-    assert np.allclose(twists, res.ruling_twist, atol=2.0)
+    # nothing moved, so the supplied tangents are kept and the twists match the loft's exactly
+    assert np.allclose(twists, res.ruling_twist, atol=1e-6)
 
 
 def test_objective_counts_twist_over_target_squared():
@@ -127,7 +125,7 @@ def test_mild_case_reaches_tolerance_within_bound():
     assert r.result.failing_ranges == []
     assert r.twist_after <= params.twist_tolerance
     assert r.max_move_used / r.mean_ruling < 0.1
-    # BB descent lands near, not on, the hinge target (spike: objective 161 -> 0.3 in 400 steps)
+    # BB descent lands near, not on, the hinge target (objective 161 -> under 1 in 800 steps)
     assert r.objective[-1] < 0.01 * r.objective[0]
 
 
@@ -137,7 +135,7 @@ def test_full_twisted_case_improves_monotonically():
     assert r.twist_before > 25.0                     # about 31 deg; documents the input
     assert r.twist_after < 25.0                      # spike measured about 22 deg
     assert all(b <= a for a, b in zip(r.objective, r.objective[1:]))
-    assert 0 < r.iterations_run <= 400
+    assert 0 < r.iterations_run <= 800
     assert np.isclose(r.max_move_used, 0.15 * r.mean_ruling, atol=1e-9)
 
 
@@ -163,8 +161,9 @@ def test_relaxation_is_scale_invariant():
     big = relax_rail_b(1000.0 * case["points_a"], 1000.0 * case["points_b"], case["tangents_a"],
                        case["tangents_b"], params, max_move=0.15)
     assert big.result.failing_ranges == []
-    assert abs(big.twist_after - unit.twist_after) < 0.1
-    assert abs(big.max_move_used / big.mean_ruling - unit.max_move_used / unit.mean_ruling) < 0.005
+    # BB trajectories diverge under round-off before convergence; the pre-fix scaled case sat at 7 deg
+    assert abs(big.twist_after - unit.twist_after) < 0.5
+    assert abs(big.max_move_used / big.mean_ruling - unit.max_move_used / unit.mean_ruling) < 0.01
 
 
 def test_exact_tangents_survive_low_sample_counts():

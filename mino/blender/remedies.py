@@ -230,7 +230,7 @@ class MINO_OT_relax(_MinoRemedy, bpy.types.Operator):
                               description="Weight of the term that keeps neighbouring moves similar")
     margin: FloatProperty(name="Margin", default=0.5, min=0.0, max=5.0,
                           description="Degrees below Twist Tolerance the solver aims for")
-    iterations: IntProperty(name="Iterations", default=400, min=10, max=1000)
+    iterations: IntProperty(name="Iterations", default=800, min=10, max=2000)
     pin_endpoints: BoolProperty(name="Pin Endpoints", default=True,
                                 description="Keep the two ends of rail B where they are")
     diagnose: BoolProperty(name="Diagnose", default=True,

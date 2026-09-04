@@ -23,10 +23,18 @@ def dedupe_indices(points: np.ndarray, eps: float = 1e-9) -> np.ndarray:
 
 
 def central_difference(points: np.ndarray) -> np.ndarray:
+    """Tangent directions scaled like 2h * f': central inside, three-point one-sided at the ends.
+
+    The second-order end formula keeps the end tangent of a curved rail within a
+    fraction of a degree; the plain chord was off by half a sample step.
+    """
     t = np.empty_like(points)
     t[1:-1] = points[2:] - points[:-2]
-    t[0] = points[1] - points[0]
-    t[-1] = points[-1] - points[-2]
+    if len(points) < 3:
+        t[0] = t[-1] = points[-1] - points[0]
+        return t
+    t[0] = -3.0 * points[0] + 4.0 * points[1] - points[2]
+    t[-1] = 3.0 * points[-1] - 4.0 * points[-2] + points[-3]
     return t
 
 

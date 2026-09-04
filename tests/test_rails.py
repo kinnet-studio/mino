@@ -51,10 +51,25 @@ def test_resample_rejects_degenerate():
         resample(np.array([[0, 0, 0], [1, 0, 0]], float), 1)
 
 
-def test_central_difference_ends():
+def test_central_difference_ends_are_second_order():
+    # ends use the three-point one-sided formula, scaled like the interior (2h * f')
     pts = np.array([[0, 0, 0], [1, 0, 0], [3, 0, 0]], float)
     t = central_difference(pts)
-    assert np.allclose(t, [[1, 0, 0], [3, 0, 0], [2, 0, 0]])
+    assert np.allclose(t, [[1, 0, 0], [3, 0, 0], [5, 0, 0]])
+
+
+def test_central_difference_two_points_falls_back_to_the_chord():
+    pts = np.array([[0, 0, 0], [2, 0, 0]], float)
+    assert np.allclose(central_difference(pts), [[2, 0, 0], [2, 0, 0]])
+
+
+def test_end_tangent_of_sampled_circle_is_close_to_analytic():
+    th = np.linspace(0.0, np.pi, 20)
+    pts = np.column_stack([np.cos(th), np.sin(th), np.zeros_like(th)])
+    t = normalize_rows(central_difference(pts))
+    exact0 = np.array([0.0, 1.0, 0.0])
+    err = np.degrees(np.arccos(np.clip(np.dot(t[0], exact0), -1.0, 1.0)))
+    assert err < 0.5   # the one-sided chord was off by about 4.7 deg at this sampling
 
 
 def test_normalize_rows_keeps_zero():

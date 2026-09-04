@@ -19,7 +19,7 @@ rulings `path = [(i, j), ...]` from the current loft, `LoftParams`, and:
 - `max_move`: bound on each point's displacement, as a fraction of the mean ruling length (default 0.05).
 - `smoothness`: weight λ of the smoothness term (default 1.0).
 - `margin`: degrees below `twist_tolerance` that the solver aims for (default 0.5, min 0), so the re-loft lands strictly inside tolerance rather than on its edge.
-- `iterations`: gradient steps (default 400).
+- `iterations`: gradient steps (default 800; a pinned end couples its tangent to two neighbours through the second-order end formula, which roughly doubles the steps the mild case needs).
 - `pin_endpoints`: keep `B[0]` and `B[N-1]` fixed (default True).
 
 Variables: `δ ∈ R^N`, one scalar per B point, moving `B'[j] = B[j] + δ_j·n_j`
@@ -55,7 +55,7 @@ is halved, at most 30 times. The sequence of `F` values is therefore
 monotone. Stop when `F` reaches 0 (every ruling on the path is within
 `target`), when the line search cannot find a decrease, when the relative
 decrease of `F` over 20 steps is below `1e-6`, or at `iterations`.
-At N = 60 with 400 iterations this takes about two seconds in numpy.
+At N = 60 with 800 iterations this takes about six seconds in numpy; the operator's time budget (section 3) bounds it.
 
 Why not plain normalized-gradient descent: the twist depends on the
 tangents of `B'`, which are second differences of `δ`, so the problem is
@@ -84,7 +84,7 @@ class RelaxResult:
     iterations_run: int
 
 def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params,
-                 max_move=0.05, smoothness=1.0, margin=0.5, iterations=400,
+                 max_move=0.05, smoothness=1.0, margin=0.5, iterations=800,
                  pin_endpoints=True) -> RelaxResult
 ```
 `relax_rail_b` first runs `loft` to obtain the rails and `path`, then
@@ -95,7 +95,7 @@ optimizes, then re-lofts.
 `mino.relax` operator, Object Mode, active object must carry
 `mino_rails`. Properties: `max_move` 0..0.5 default 0.05, `smoothness`
 0..10 default 1.0, `margin` 0..5 default 0.5, `iterations` 10..1000
-default 400, `pin_endpoints` default True, and `diagnose` default True
+default 800 (max 2000), `pin_endpoints` default True, and `diagnose` default True
 like the other remedies. It:
 
 1. Reads the stored rails and params.
