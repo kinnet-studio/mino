@@ -45,3 +45,31 @@ def test_ruling_lengths():
     L = ruling_lengths(a, b)
     assert np.allclose(np.diagonal(L), 2.0)
     assert np.isclose(L[0, 1], np.sqrt(5))
+
+
+from mino.core.twist import paired_twist
+
+
+def test_paired_twist_matches_matrix_entries():
+    rng = np.random.default_rng(0)
+    pa = np.cumsum(rng.normal(size=(6, 3)), axis=0)
+    pb = np.cumsum(rng.normal(size=(6, 3)), axis=0) + np.array([0.0, 0.0, 3.0])
+    ta = np.diff(pa, axis=0, append=pa[-1:] + (pa[-1:] - pa[-2:-1]))
+    tb = np.diff(pb, axis=0, append=pb[-1:] + (pb[-1:] - pb[-2:-1]))
+    a = _rail(pa, ta / np.linalg.norm(ta, axis=1, keepdims=True))
+    b = _rail(pb, tb / np.linalg.norm(tb, axis=1, keepdims=True))
+    full = twist_matrix(a, b, window=5)
+    pairs = [(0, 0), (1, 2), (3, 1), (5, 5)]
+    i = np.array([p[0] for p in pairs])
+    j = np.array([p[1] for p in pairs])
+    got = paired_twist(a.points[i], a.tangents[i], b.points[j], b.tangents[j])
+    assert np.allclose(got, full[i, j])
+
+
+def test_paired_twist_flags_degenerate_rulings():
+    pa = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    ta = np.array([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    pb = np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]])   # zero-length, then parallel to tangent
+    tb = np.array([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    got = paired_twist(pa, ta, pb, tb)
+    assert np.isinf(got).all()
