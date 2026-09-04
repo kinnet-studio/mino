@@ -36,8 +36,10 @@ def test_objective_is_zero_when_within_target_and_unmoved():
     delta = np.zeros(len(rb.points))
     f, twists = relax_objective(delta, ra, rb, normals, path, target=5.0, smoothness=1.0)
     assert f == 0.0
-    # B tangents are re-derived by central difference, so twists only approximate the loft's exact-tangent values
-    assert np.allclose(twists, res.ruling_twist, atol=1.0)
+    # B tangents are re-derived by central difference, so twists only approximate the loft's
+    # exact-tangent values; the two end rulings use one-sided differences and drift about 1.5 deg
+    assert np.allclose(twists[1:-1], res.ruling_twist[1:-1], atol=1.0)
+    assert np.allclose(twists, res.ruling_twist, atol=2.0)
 
 
 def test_objective_counts_twist_over_target_squared():
