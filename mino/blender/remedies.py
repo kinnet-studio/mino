@@ -11,6 +11,7 @@ from ..core import LoftError, loft
 from ..core.dart import dart_mesh, dart_proposal
 from ..core.diagnose import diagnosis_from_dict
 from ..core.rails import prepare_rails
+from ..core.relax import relax_rail_b
 from ..core.strakes import chain_loft, subdivide_sections
 from . import output
 from .state import load_diagnosis, load_inputs
@@ -58,6 +59,8 @@ def diagnosis_rows(obj):
                          "mino.dart", {"ruling": int(s.params["ruling"])}))
         else:
             rows.append((s.text, None, {}))
+    if d.failing_ranges:
+        rows.append(("Relax rail B (moves ≤ 5% of ruling)", "mino.relax", {}))
     return rows
 
 
@@ -216,4 +219,41 @@ class MINO_OT_dart(_MinoRemedy, bpy.types.Operator):
         return {"FINISHED"}
 
 
-classes = (MINO_OT_reloft, MINO_OT_subdivide, MINO_OT_dart)
+class MINO_OT_relax(_MinoRemedy, bpy.types.Operator):
+    """Move rail B a bounded amount so the loft becomes developable, and return the moved rail as a curve"""
+    bl_idname = "mino.relax"
+    bl_label = "Relax Rail B"
+
+    max_move: FloatProperty(name="Max Move", default=0.05, min=0.0, max=0.5,
+                            description="Largest move of any rail B point, as a fraction of the mean ruling length")
+    smoothness: FloatProperty(name="Smoothness", default=1.0, min=0.0, max=10.0,
+                              description="Weight of the term that keeps neighbouring moves similar")
+    margin: FloatProperty(name="Margin", default=0.5, min=0.0, max=5.0,
+                          description="Degrees below Twist Tolerance the solver aims for")
+    iterations: IntProperty(name="Iterations", default=400, min=10, max=1000)
+    pin_endpoints: BoolProperty(name="Pin Endpoints", default=True,
+                                description="Keep the two ends of rail B where they are")
+    diagnose: BoolProperty(name="Diagnose", default=True,
+                           description="Store ranked suggestions for non-developable regions on the result")
+
+    def execute(self, context):
+        obj = context.active_object
+        try:
+            pa, ta, pb, tb, params = load_inputs(obj)
+            res = relax_rail_b(pa, pb, ta, tb, params, max_move=self.max_move, smoothness=self.smoothness,
+                               margin=self.margin, iterations=self.iterations, pin_endpoints=self.pin_endpoints)
+        except LoftError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        output.create_curve_object(context, f"{obj.name}.railB.relaxed", res.points_b)
+        output.create_result_object(context, f"{obj.name}.relaxed", pa, ta, res.points_b, None, params,
+                                    res.result, self.diagnose)
+        pct = 100.0 * res.max_move_used / res.mean_ruling if res.mean_ruling > 0 else 0.0
+        self.report({"INFO"}, f"Mino: relaxed rail B, max twist {res.twist_before:.1f} -> {res.twist_after:.1f} deg, "
+                              f"largest move {res.max_move_used:.3g} ({pct:.0f}% of mean ruling)")
+        if res.result.failing_ranges:
+            self.report({"WARNING"}, "Mino: still over tolerance; raise Max Move or subdivide into strakes")
+        return {"FINISHED"}
+
+
+classes = (MINO_OT_reloft, MINO_OT_subdivide, MINO_OT_dart, MINO_OT_relax)

@@ -64,11 +64,15 @@ def test_diagnosis_rows_maps_kinds_to_operators():
         ],
     }
     rows = diagnosis_rows({"mino_diagnosis": json.dumps(diag)})
-    assert [r[1] for r in rows] == ["mino.reloft", "mino.subdivide", "mino.dart", None]
+    assert [r[1] for r in rows] == ["mino.reloft", "mino.subdivide", "mino.dart", None, "mino.relax"]
+    assert rows[-1][0].startswith("Relax rail B") and rows[-1][2] == {}
     assert rows[0][2] == {"window": 16} and rows[1][2] == {"strakes": 4} and rows[2][2] == {"ruling": 15}
     assert "gusset" in rows[2][0] and "12.5" in rows[2][0]
     assert diagnosis_rows({"mino_diagnosis": ""}) == [("Diagnosis off for this loft", None, {})]
     assert diagnosis_rows({}) == [("Diagnosis off for this loft", None, {})]
+
+    ok = {**diag, "failing_ranges": [], "suggestions": [{"kind": "ok", "text": "o", "params": {}, "rank": 0}]}
+    assert [r[1] for r in diagnosis_rows({"mino_diagnosis": json.dumps(ok)})] == [None]
 
 
 def test_reloft_with_window_creates_new_object(fresh_scene):

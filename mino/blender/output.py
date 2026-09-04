@@ -115,3 +115,18 @@ def create_dart_object(context, dart, name, twist_tolerance):
     obj = bpy.data.objects.new(name, me)
     _link_and_select(context, obj)
     return obj
+
+
+def create_curve_object(context, name, points):
+    """POLY curve through `points` (world space, identity transform). Linked, not selected."""
+    import bpy
+
+    pts = np.asarray(points, dtype=float).reshape(-1, 3)
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    sp = cu.splines.new("POLY")
+    sp.points.add(len(pts) - 1)
+    sp.points.foreach_set("co", np.column_stack([pts, np.ones(len(pts))]).ravel())
+    obj = bpy.data.objects.new(name, cu)
+    context.collection.objects.link(obj)
+    return obj
