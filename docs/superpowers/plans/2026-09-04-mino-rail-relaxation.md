@@ -394,9 +394,9 @@ def test_developable_strip_is_left_alone():
     ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples,
                            case["tangents_a"], case["tangents_b"])
     assert np.allclose(r.points_b, rb.points, atol=1e-9)
-    # the re-loft derives B tangents by central difference, so twist can differ slightly
+    # the re-loft derives B tangents by central difference; its one-sided end formula drifts about 1.5 deg
     assert r.result.failing_ranges == []
-    assert abs(r.twist_after - r.twist_before) < 1.0
+    assert abs(r.twist_after - r.twist_before) < 2.0
 
 
 def test_bounds_and_pins_are_respected():
@@ -422,7 +422,8 @@ def test_mild_case_reaches_tolerance_within_bound():
     assert r.result.failing_ranges == []
     assert r.twist_after <= params.twist_tolerance
     assert r.max_move_used / r.mean_ruling < 0.1
-    assert r.objective[-1] == 0.0
+    # BB descent lands near, not on, the hinge target (spike: objective 161 -> 0.3 in 400 steps)
+    assert r.objective[-1] < 0.01 * r.objective[0]
 
 
 def test_full_twisted_case_improves_monotonically():
@@ -445,7 +446,7 @@ def test_result_matches_reloft_of_returned_rail():
 def test_zero_max_move_is_a_noop():
     case, params, r = _relax("twisted", max_move=0.0)
     assert r.iterations_run == 0 and r.max_move_used == 0.0
-    assert abs(r.twist_after - r.twist_before) < 1.0
+    assert abs(r.twist_after - r.twist_before) < 2.0
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
