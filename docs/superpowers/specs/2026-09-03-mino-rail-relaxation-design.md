@@ -1,7 +1,7 @@
 # Mino: rail relaxation. Design (spec 2 of 2)
 
 Date: 2026-09-03
-Status: approved design, pre-implementation. Amended 2026-09-04 after a throwaway solver spike (see section 7).
+Status: approved design, pre-implementation. Amended 2026-09-04 after a throwaway solver spike (see section 7) and again after the final branch review (see section 8).
 Builds on: spec 1 (`2026-09-03-mino-diagnosis-and-remedies-design.md`), which provides the stored inputs on result objects and the Diagnosis panel.
 
 ## 1. Goal
@@ -27,16 +27,22 @@ where `n_j` is the local strip normal at B: `normalize(T_B[j] × R)` with `R`
 the ruling of the first path entry that uses `j`. Bounds `|δ_j| ≤ d` where
 `d = max_move · mean ruling length`; pinned endpoints have `δ = 0`.
 
-Tangents of `B'` are recomputed by central difference each evaluation.
-Twist is evaluated on the fixed pairing `path` (no DP inside the loop):
+Tangents of `B'` are the supplied tangents plus the central-difference
+change: `T_B'[j] = normalize(T_B[j] + c(B')[j] − c(B)[j])` where `c(P)` is
+the normalized central difference of the points `P`. When nothing moves
+this returns `T_B` exactly, so exact (Bezier) tangents are kept; when `T_B`
+itself came from central differences it reduces to `c(B')`. Twist is
+evaluated on the fixed pairing `path` (no DP inside the loop):
 `twist_k(δ)` for each `(i, j)` in `path` using the twist formula from the
 loft core on `A[i]`, `T_A[i]`, `B'[j]`, `T_B'[j]`.
 
 Objective:
 ```
-F(δ) = Σ_k max(0, twist_k(δ) − target)²  +  λ · Σ_j (δ_{j+1} − δ_j)²
+F(δ) = Σ_k max(0, twist_k(δ) − target)²  +  λ · Σ_j (δ_{j+1} − δ_j)² / ℓ²
 ```
-with `target = max(0, params.twist_tolerance − margin)` in degrees.
+with `target = max(0, params.twist_tolerance − margin)` in degrees and
+`ℓ` the mean ruling length, so `λ` is dimensionless and the remedy behaves
+the same at metre and millimetre scale.
 
 Solver: projected gradient descent with central finite-difference
 gradients (step `1e-4·d`; a gradient costs 2·(N−2) objective evaluations,
@@ -58,14 +64,18 @@ steps used a fifth of the allowed move and left 6.2° on the 8.5° case).
 Why the margin: the hinge is flat at the tolerance, so the optimum sits
 exactly on it and the re-loft reads a hair over (5.05° at a 5° tolerance).
 
-After the loop, run the full `loft(A, B')` (DP included) to get the final
-result; the DP may now choose better rulings than `path`.
+After the loop, run the full `loft(A, B', T_A, T_B')` (DP included) with
+the moved tangents defined above to get the final result; the DP may now
+choose better rulings than `path`. Measuring the result with the same
+tangent convention as the baseline means a developable strip relaxes to
+itself with `twist_after == twist_before`.
 
 API:
 ```python
 @dataclass
 class RelaxResult:
     points_b: np.ndarray       # moved rail B, N×3
+    tangents_b: np.ndarray     # tangents of the moved rail B, N×3 (see above)
     delta: np.ndarray          # signed moves, N
     max_move_used: float       # max |delta|
     twist_before: float        # max twist on path before
@@ -90,7 +100,7 @@ like the other remedies. It:
 
 1. Reads the stored rails and params.
 2. Runs `relax_rail_b`.
-3. Creates a POLY curve object `<name>.railB.relaxed` through `points_b` (world space, identity transform), plus a new loft object `<name>.relaxed` from A and B' with stored inputs and diagnosis like any Mino result. The stored inputs are the original A points and tangents, the moved B' points, and no B tangents (they are derived by central difference on every re-loft).
+3. Creates a POLY curve object `<name>.railB.relaxed` through `points_b` (world space, identity transform), plus a new loft object `<name>.relaxed` from A and B' with stored inputs and diagnosis like any Mino result. The stored inputs are the original A points and tangents, the moved B' points, and the moved B' tangents from `RelaxResult.tangents_b`, so a re-loft from the stored inputs reproduces the relaxed mesh exactly.
 4. Reports: "Relaxed rail B: max twist {before:.1f}° → {after:.1f}°, largest move {m:.3g} ({pct:.0f}% of mean ruling)". If `twist_after` is still over tolerance it adds a WARNING suggesting a larger `max_move` or subdivide.
 
 Panel: the Diagnosis box gains a row "Relax rail B (moves ≤ 5% of ruling)"
@@ -104,7 +114,9 @@ feature also show it. The button runs `mino.relax` with its defaults.
 Core:
 - Gradient sanity: on a small random δ the finite-difference gradient of the smoothness term matches its analytic gradient `2λ·L δ` (L the 1D chain Laplacian over the N points, pinned rows zeroed) within 1e-6.
 - Bounds and pins: every `|δ_j| ≤ d`, endpoints exactly 0 when pinned.
-- Cylinder: relaxing a developable strip leaves `B` unchanged within 1e-9 (gradient is zero when no ruling exceeds tolerance).
+- Cylinder: relaxing a developable strip leaves `B` unchanged within 1e-9 (gradient is zero when no ruling exceeds tolerance) and `twist_after` equals `twist_before` within 1e-6; the same holds at `samples = 8`, the operator minimum, where central-difference end tangents alone would invent about 7° of twist.
+- Scale invariance: the mild case scaled by 1000 relaxes to the same twist and the same move fraction as at unit scale.
+- Degenerate rulings count as 90° inside the objective: a hand-built path with one zero-length ruling gives `F = (90 − target)²`.
 - Mildly twisted pair (the twisted case with `phi = 0.3·(t/4)²`, max twist about 8.5°): with `max_move = 0.15` the re-loft has no failing rulings. The spike measured `twist_after` about 4.6° and `max_move_used` about 0.065 with the default margin; the test asserts no failing rulings and `max_move_used < 0.1`, and records the achieved numbers as documentation. If tolerance is not reached, the implementer stops and reports the numbers rather than loosening the assertion.
 - Full twisted case (max twist about 31°): `twist_after < twist_before` (the spike measured about 22° at `max_move = 0.15`), the objective decreases monotonically (line search guarantee), and `max_move_used` equals `max_move` within 1e-9 (the bound is active).
 
@@ -136,3 +148,16 @@ the monotone guarantee so it was chosen. Moving B in full 3D instead of
 along the strip normal did not help, so the scalar-per-point formulation
 stands. The margin was added because the hinge optimum sits exactly on
 the tolerance. Nothing from the spike is kept as code.
+
+## 8. Final review amendments (2026-09-04)
+
+The whole-branch review measured two defects in the section 2 formulation
+as first written. The smoothness term carried units of length², so at
+millimetre scale it swamped the hinge term and the mild case stayed at 7°;
+dividing by the mean ruling length squared makes `λ` dimensionless. The
+baseline twist used the caller's tangents while the objective and re-loft
+used central differences, whose one-sided end formula invents about
+90/(N−1) degrees on a curved rail; at `samples = 8` that moved a
+developable Bezier-railed strip and then warned about it. Defining the
+moved tangents as the supplied tangents plus the central-difference change
+keeps both measurements on one convention.

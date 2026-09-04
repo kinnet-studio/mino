@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-03-mino-rail-relaxation-design.md` (read section 2 for the formulation and section 7 for the spike numbers the tests rely on).
 
+Final-review fix wave (2026-09-04): the smoothness term is divided by the mean ruling length squared, the moved rail's tangents are the supplied tangents plus the central-difference change and are returned as `RelaxResult.tangents_b` and stored on the relaxed object, and the BB fallback epsilon is relative; see spec sections 2 and 8 and the ledger.
+
 Deviations from the spec decided while planning: `RelaxResult` gains two fields, `objective` (the monotone list of objective values, needed by the monotonicity test) and `mean_ruling` (needed by the operator's percentage report); the core re-loft uses the original A points and tangents so the stored inputs on the relaxed object reproduce its mesh exactly; the mild test case is `CASES["twisted"]` with a new `scale` argument instead of a separate case; the operator report uses `->` instead of the arrow glyph.
 
 ## Global Constraints
