@@ -112,7 +112,7 @@ def test_chain_loft_and_subdivide_reject_bad_input():
 
 
 def test_subdivide_strips_share_rails_with_planarize_on():
-    case, params, res = _twisted()
+    case, params, res = _twisted(quads=False)
     strips = subdivide(case["points_a"], case["points_b"], case["tangents_a"], case["tangents_b"],
                        params, res.rulings, strakes=3)
     n = params.samples
@@ -138,3 +138,32 @@ def test_subdivide_sections_use_adaptive_rails():
                            case["tangents_b"], adaptive=0.6)
     i, j = np.array(res.rulings).T
     assert np.allclose(secs[1][0], 0.5 * (ra.points[i] + rb.points[j]))
+
+
+def _distance_to_polyline(points, poly):
+    best = np.full(len(points), np.inf)
+    for a, b in zip(poly[:-1], poly[1:]):
+        d = b - a
+        t = np.clip((points - a) @ d / (d @ d), 0.0, 1.0)
+        best = np.minimum(best, np.linalg.norm(points - (a + t[:, None] * d), axis=1))
+    return best
+
+
+@pytest.mark.parametrize("adaptive", [0.0, 0.6])
+def test_quad_strakes_meet_on_the_shared_rail(adaptive):
+    # each strip spreads its own fans, so the glue edges need not share vertices; they must still
+    # lie on each other within a small fraction of a sample, with the same length and corners
+    case, params, res = _twisted(adaptive=adaptive)
+    secs = subdivide_sections(case["points_a"], case["points_b"], case["tangents_a"], case["tangents_b"],
+                              params, res.rulings, strakes=3)
+    strips = chain_loft(secs, params)
+    for left, right in zip(strips, strips[1:]):
+        ml, mr = len(left.verts) // 2, len(right.verts) // 2
+        edge_l, edge_r = left.verts[ml:], right.verts[:mr]
+        length_l = np.linalg.norm(np.diff(edge_l, axis=0), axis=1).sum()
+        length_r = np.linalg.norm(np.diff(edge_r, axis=0), axis=1).sum()
+        spacing = length_l / (params.samples - 1)
+        assert _distance_to_polyline(edge_l, edge_r).max() < 0.02 * spacing
+        assert _distance_to_polyline(edge_r, edge_l).max() < 0.02 * spacing
+        assert length_r == pytest.approx(length_l, rel=1e-4)
+        assert np.allclose(edge_l[0], edge_r[0], atol=1e-12) and np.allclose(edge_l[-1], edge_r[-1], atol=1e-12)

@@ -25,6 +25,7 @@ class LoftParams:
     planarize_iterations: int = 10
     planarize_max_nudge: float = 0.05
     consistent_creases: bool = True
+    quads: bool = True  # every face a quad between consecutive rulings; fans are spread
 
 
 @dataclass
@@ -52,3 +53,4 @@ class StripResult:
     failing_ranges: list
     report: Report
     layout: list = field(default_factory=list)
+    ruling_verts: list = field(default_factory=list)  # (vertex on A, vertex on B) per ruling

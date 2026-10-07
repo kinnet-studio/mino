@@ -7,6 +7,7 @@ import numpy as np
 
 from .align import align, tie_matrix
 from .dart import DartProposal, dart_proposal
+from .quads import quad_strip
 from .rails import prepare_rails
 from .strakes import find_strake_count
 from .twist import twist_matrix
@@ -39,6 +40,8 @@ def probe_window(rail_a: Rail, rail_b: Rail, params: LoftParams, window: int) ->
     twist = twist_matrix(rail_a, rail_b, window)
     cost = twist + params.tie_weight * tie_matrix(rail_a, rail_b, params.tie_breaker, params.plane_normal)
     path = align(cost)
+    if params.quads:
+        return float(np.max(quad_strip(rail_a, rail_b, path)[2]))
     return float(max(twist[i, j] for i, j in path))
 
 

@@ -119,7 +119,7 @@ def _rail_kinks(verts, rail_points):
 @pytest.mark.parametrize("overrides", [{}, {"planarize_max_nudge": 0.2, "planarize_iterations": 50}])
 def test_planarize_keeps_rails_smooth(overrides):
     # B52 and B53 each sit in a single quad next to a triangle, so nothing balances that quad's push.
-    case, params, res = _run("twisted", **overrides)
+    case, params, res = _run("twisted", quads=False, **overrides)
     n = params.samples
     ra, rb = prepare_rails(case["points_a"], case["points_b"], n, case["tangents_a"], case["tangents_b"])
     assert _rail_kinks(res.verts[:n], ra.points).max() <= MAX_KINK + 1e-9
@@ -181,3 +181,48 @@ def test_adaptive_loft_runs_on_every_case(name):
     assert res.report.ruling_count == len(res.rulings)
     if name in ("cylinder", "cone"):
         assert res.ruling_twist.max() < 0.01 and res.failing_ranges == []
+
+
+@pytest.mark.parametrize("name", ["ellipse", "offset_cylinder"])
+def test_quads_replace_fan_triangles(name):
+    quad, grid = _run(name)[2], _run(name, quads=False)[2]
+    assert all(len(f) == 4 for f in quad.faces) and not quad.face_split.any()
+    assert quad.report.max_twist == pytest.approx(grid.report.max_twist, rel=1e-9)
+
+
+def test_quads_on_twisted_leave_only_split_triangles():
+    res = _run("twisted")[2]
+    assert all(len(f) == 4 or res.face_split[k] for k, f in enumerate(res.faces))
+
+
+@pytest.mark.parametrize("name", ["cylinder", "cone"])
+def test_quads_match_the_grid_without_fans(name):
+    quad, grid = _run(name)[2], _run(name, quads=False)[2]
+    assert np.array_equal(quad.verts, grid.verts) and quad.faces == grid.faces
+
+
+@pytest.mark.parametrize("name, overrides", [("cylinder", {}), ("cone", {}), ("ellipse", {"window": 8}),
+                                             ("offset_cylinder", {})])
+def test_quads_unfold_to_the_same_area(name, overrides):
+    # the ellipse is developable only once rulings may lean 8 samples; at its default 2 it is not
+    res = _run(name, **overrides)[2]
+    assert res.report.area_unfolded == pytest.approx(res.report.area_3d, rel=1e-3)
+
+
+@pytest.mark.parametrize("quads", [True, False])
+def test_ruling_verts_pair_each_ruling(quads):
+    _, params, res = _run("ellipse", quads=quads)
+    m = len(res.verts) // 2
+    expected = ([(k, m + k) for k in range(len(res.rulings))] if quads
+                else [(i, params.samples + j) for i, j in res.rulings])
+    assert res.ruling_verts == expected
+
+
+@pytest.mark.parametrize("name, overrides", [("ellipse", {}), ("twisted", {}),
+                                             ("twisted", {"planarize_max_nudge": 0.2, "planarize_iterations": 50})])
+def test_planarize_keeps_quad_rails_smooth(name, overrides):
+    on = _run(name, samples=24, **overrides)[2]
+    off = _run(name, samples=24, planarize=False, **overrides)[2]
+    m = len(on.verts) // 2
+    assert _rail_kinks(on.verts[:m], off.verts[:m]).max() <= MAX_KINK + 1e-9
+    assert _rail_kinks(on.verts[m:], off.verts[m:]).max() <= MAX_KINK + 1e-9

@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from mino.core import LoftParams, loft
 from mino.core.diagnose import (crease_runs, diagnose, diagnosis_from_dict, diagnosis_to_dict,
@@ -79,3 +80,12 @@ def test_diagnosis_round_trips_through_json():
     assert [s.kind for s in back.suggestions] == [s.kind for s in d.suggestions]
     assert back.darts[0].ruling == d.darts[0].ruling
     assert np.isclose(back.darts[0].wedge_deg, d.darts[0].wedge_deg)
+
+
+def test_probe_window_measures_the_quad_strip():
+    # at Window 8 the ellipse's worst ruling sits in a fan, so spread and grid twist differ
+    case, params, res = _run("ellipse", window=8)
+    grid = _run("ellipse", window=8, quads=False)[2]
+    assert res.report.max_twist < grid.report.max_twist - 0.1
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples, case["tangents_a"], case["tangents_b"])
+    assert probe_window(ra, rb, params, 8) == pytest.approx(res.report.max_twist, rel=1e-12)
