@@ -172,3 +172,12 @@ def test_consistent_creases_on_twisted_strip():
     assert orientations
     for r in orientations:
         assert len(set(r)) == 1
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_adaptive_loft_runs_on_every_case(name):
+    _, params, res = _run(name, adaptive=0.6)
+    assert np.isfinite(res.verts).all()
+    assert res.report.ruling_count == len(res.rulings)
+    if name in ("cylinder", "cone"):
+        assert res.ruling_twist.max() < 0.01 and res.failing_ranges == []

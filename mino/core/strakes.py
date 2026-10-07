@@ -36,7 +36,7 @@ def subdivide_sections(points_a, points_b, tangents_a, tangents_b, params: LoftP
     """A, the strakes-1 mid-rails on the given rulings, and B, as (points, tangents) sections."""
     if strakes < 2:
         raise LoftError("strakes must be at least 2")
-    rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b)
+    rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b, params.adaptive)
     mids = mid_rails(rail_a, rail_b, rulings, strakes - 1)
     return ([(np.asarray(points_a, dtype=float), tangents_a)]
             + [(m, None) for m in mids]

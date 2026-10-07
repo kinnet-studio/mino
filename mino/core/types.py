@@ -14,6 +14,7 @@ class Rail:
 @dataclass
 class LoftParams:
     samples: int = 60
+    adaptive: float = 0.0  # share of samples placed by rail bending; 0 = even spacing
     window: int = 8
     twist_tolerance: float = 5.0
     tie_breaker: str = "none"  # "none" | "shortest" | "plane"

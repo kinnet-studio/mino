@@ -198,7 +198,7 @@ class MINO_OT_dart(_MinoRemedy, bpy.types.Operator):
             pa, ta, pb, tb, params = load_inputs(obj)
             diag = load_diagnosis(obj)
             base = loft(pa, pb, params, ta, tb)
-            ra, rb = prepare_rails(pa, pb, params.samples, ta, tb)
+            ra, rb = prepare_rails(pa, pb, params.samples, ta, tb, params.adaptive)
             if self.properties.is_property_set("ruling"):
                 ruling = min(self.ruling, len(base.rulings) - 1)
             elif diag and diag.darts:

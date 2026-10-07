@@ -100,7 +100,7 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
     """
     params = params or LoftParams()
     base = loft(points_a, points_b, params, tangents_a, tangents_b)
-    rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b)
+    rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b, params.adaptive)
     path = np.asarray(base.rulings, dtype=int)
     n = len(rail_b.points)
 

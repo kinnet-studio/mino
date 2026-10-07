@@ -12,6 +12,7 @@ def test_default_params():
     assert p.planarize is True
     assert p.planar_tolerance == 0.01
     assert p.planarize_max_nudge == 0.05
+    assert p.adaptive == 0.0
 
 
 def test_rail_holds_arrays():

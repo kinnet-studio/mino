@@ -19,7 +19,7 @@ def loft(points_a, points_b, params: LoftParams | None = None,
          tangents_a=None, tangents_b=None, *, pin_a: bool = False, pin_b: bool = False) -> StripResult:
     params = params or LoftParams()
     n = params.samples
-    rail_a, rail_b = prepare_rails(points_a, points_b, n, tangents_a, tangents_b)
+    rail_a, rail_b = prepare_rails(points_a, points_b, n, tangents_a, tangents_b, params.adaptive)
 
     twist = twist_matrix(rail_a, rail_b, params.window)
     cost = twist + params.tie_weight * tie_matrix(rail_a, rail_b, params.tie_breaker, params.plane_normal)

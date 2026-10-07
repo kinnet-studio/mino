@@ -60,7 +60,7 @@ def diagnose(points_a, points_b, tangents_a, tangents_b, params: LoftParams, res
                          [Suggestion("ok", "All rulings within tolerance", {}, RANK["ok"])])
     tol = params.twist_tolerance
     n = params.samples
-    rail_a, rail_b = prepare_rails(points_a, points_b, n, tangents_a, tangents_b)
+    rail_a, rail_b = prepare_rails(points_a, points_b, n, tangents_a, tangents_b, params.adaptive)
 
     window_fix = None
     for w in sorted({min(2 * params.window, n - 1), min(4 * params.window, n - 1)}):

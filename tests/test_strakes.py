@@ -128,3 +128,13 @@ def test_loft_pins_whole_rails_when_asked():
     assert np.allclose(pinned.verts[:n], ra.points) and np.allclose(pinned.verts[n:], rb.points)
     free = loft(case["points_a"], case["points_b"], params, case["tangents_a"], case["tangents_b"])
     assert not np.allclose(free.verts[:n], ra.points)
+
+
+def test_subdivide_sections_use_adaptive_rails():
+    case, params, res = _twisted(adaptive=0.6)
+    secs = subdivide_sections(case["points_a"], case["points_b"], case["tangents_a"], case["tangents_b"],
+                              params, res.rulings, strakes=2)
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples, case["tangents_a"],
+                           case["tangents_b"], adaptive=0.6)
+    i, j = np.array(res.rulings).T
+    assert np.allclose(secs[1][0], 0.5 * (ra.points[i] + rb.points[j]))
