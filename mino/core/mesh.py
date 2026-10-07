@@ -3,6 +3,10 @@ from __future__ import annotations
 
 import numpy as np
 
+# Planarize keeps each rail smooth: at every rail vertex, the second difference of the
+# displacement stays within this fraction of the local sample spacing (about 6 degrees of bend).
+MAX_KINK = 0.1
+
 
 def build_faces(path, n_a: int):
     faces = []
@@ -33,15 +37,71 @@ def face_planarity(verts: np.ndarray, faces) -> np.ndarray:
     return np.array([quad_planarity(verts, f) if len(f) == 4 else 0.0 for f in faces], dtype=float)
 
 
-def planarize(verts, faces, pinned, tolerance, iterations, max_nudge):
+def local_spacing(points: np.ndarray) -> np.ndarray:
+    """Mean length of the rail segments meeting at each vertex (the one segment at the ends)."""
+    seg = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    h = np.empty(len(points))
+    h[0], h[-1] = seg[0], seg[-1]
+    h[1:-1] = 0.5 * (seg[:-1] + seg[1:])
+    return h
+
+
+def limit_kinks(disp, limit, fixed, max_nudge, sweeps=50):
+    """Move one rail's displacements so |disp[v-1] - 2 disp[v] + disp[v+1]| <= limit[v] at every free
+    vertex v, and |disp[v]| <= max_nudge everywhere.
+
+    disp is (m, k): k = 3 for free 3D moves, k = 1 for distances along fixed directions. In place.
+    Each kink is fixed by moving its own vertex toward the midpoint of its neighbours. Kinks of one
+    parity move disjoint vertices, so each half-sweep is an exact projection; alternating the halves
+    with the nudge cap converges because disp = 0 satisfies every bound.
+    """
+    m = len(disp)
+    for _ in range(sweeps):
+        worst = 0.0
+        for start in (1, 2):
+            v = np.arange(start, m - 1, 2)
+            v = v[~fixed[v]]
+            k = disp[v - 1] - 2.0 * disp[v] + disp[v + 1]
+            kn = np.linalg.norm(k, axis=1)
+            over = kn > limit[v]
+            if over.any():
+                v, k, kn, lim = v[over], k[over], kn[over], limit[v][over]
+                worst = max(worst, float(((kn - lim) / lim).max()))
+                disp[v] += 0.5 * k * (1.0 - lim / kn)[:, None]
+        d = np.linalg.norm(disp, axis=1)
+        out = d > max_nudge
+        if out.any():
+            worst = max(worst, float(((d[out] - max_nudge) / d[out]).max()))
+            disp[out] *= (max_nudge / d[out])[:, None]
+        if worst < 1e-9:
+            break
+    return disp
+
+
+def planarize(verts, faces, pinned, tolerance, iterations, max_nudge, rails=()):
+    """Move each vertex to the mean of its quads' projections onto their own planes.
+
+    rails: index chains (rail A, rail B) whose displacements must stay smooth: at any vertex the
+    move bends the rail by at most MAX_KINK x the local sample spacing. Without this, a vertex in a
+    single quad (next to a triangle) takes that quad's whole correction on every iteration and
+    spikes out of the surface until max_nudge stops it.
+
+    Returns the iterate (the input included) with the fewest quads over tolerance, then the lowest
+    total planarity, so flattening one quad never buys a split elsewhere.
+    """
     verts = np.asarray(verts, dtype=float).copy()
     orig = verts.copy()
     quads = [f for f in faces if len(f) == 4]
     pinned = list(pinned)
     if len(set(pinned)) >= len(verts):
         return verts
+    fixed = np.zeros(len(verts), dtype=bool)
+    fixed[pinned] = True
+    chains = [np.asarray(list(r), dtype=int) for r in rails]
+    limits = [(chain, MAX_KINK * local_spacing(orig[chain])) for chain in chains if len(chain) >= 3]
+    pl = face_planarity(verts, quads)
+    best, best_key = verts, (int((pl > tolerance).sum()), float(pl.sum()))
     for _ in range(iterations):
-        pl = face_planarity(verts, quads)
         if len(pl) == 0 or pl.max() <= tolerance:
             break
         acc = np.zeros_like(verts)
@@ -67,8 +127,15 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge):
         over = d > max_nudge
         if over.any():
             new[over] = orig[over] + disp[over] * (max_nudge / d[over])[:, None]
+        for chain, limit in limits:
+            disp = limit_kinks(new[chain] - orig[chain], limit, fixed[chain], max_nudge)
+            new[chain] = orig[chain] + disp
         verts = new
-    return verts
+        pl = face_planarity(verts, quads)
+        key = (int((pl > tolerance).sum()), float(pl.sum()))
+        if key < best_key:
+            best, best_key = verts, key
+    return best
 
 
 def _tri_normal(verts, tri):

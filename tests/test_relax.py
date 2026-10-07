@@ -1,6 +1,7 @@
 import numpy as np
 
 from mino.core import LoftParams, loft
+from mino.core.mesh import MAX_KINK
 from mino.core.rails import central_difference, normalize_rows, prepare_rails
 from mino.core.relax import moved_tangents_b, numeric_gradient, relax_objective, strip_normals_b
 from mino.core.types import Rail
@@ -112,6 +113,16 @@ def test_bounds_and_pins_are_respected():
     ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples,
                            case["tangents_a"], case["tangents_b"])
     assert np.allclose(np.linalg.norm(r.points_b - rb.points, axis=1), np.abs(r.delta), atol=1e-9)
+
+
+def test_relaxed_rail_stays_smooth():
+    # Max Move bounds each point on its own; neighbouring moves must also stay in line, as in planarize.
+    case, params, r = _relax("twisted", max_move=0.05)
+    ra, rb = prepare_rails(case["points_a"], case["points_b"], params.samples,
+                           case["tangents_a"], case["tangents_b"])
+    seg = np.linalg.norm(np.diff(rb.points, axis=0), axis=1)
+    limit = MAX_KINK * 0.5 * (seg[:-1] + seg[1:])
+    assert (np.abs(np.diff(r.delta, 2)) / limit).max() <= 1 + 1e-6
 
 
 def test_unpinned_endpoints_may_move():

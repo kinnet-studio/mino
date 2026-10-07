@@ -27,7 +27,7 @@ To see the twist colors: Solid shading > Color > Attribute.
 - Twist Tolerance: degrees; rulings above it are flagged and colored.
 - Tie Breaker: none, shortest ruling, or plane direction, with a weight.
 - Plane Normal: the reference plane's normal, used when Tie Breaker is set to plane direction.
-- Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it.
+- Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it. Nudges keep each rail smooth (at most about 6° of added bend at any vertex), so no vertex spikes out of the surface.
 - Planar Tolerance: quads still above it are split into two triangles.
 - Max Nudge: cap on vertex movement during planarize, as a fraction of the mean ruling length.
 - Consistent Creases: use one crease direction per run of split quads.
@@ -47,7 +47,8 @@ suggestions and a button for each:
   ruled surface has non-positive curvature, so this is normally a gusset.
 - Relax rail B: move rail B by at most Max Move (a fraction of the mean
   ruling length) along the strip normal so the loft becomes developable.
-  You get the moved rail as a new curve `<name>.railB.relaxed` (a resampled
+  The moved rail stays smooth: like planarize, it adds at most about 6° of
+  bend at any point. You get the moved rail as a new curve `<name>.railB.relaxed` (a resampled
   polyline of Samples points, not the original control points) to accept
   or reject, plus the re-lofted strip `<name>.relaxed`. Planarize may still
   nudge mesh vertices by up to Max Nudge, so the Max Move bound applies to
