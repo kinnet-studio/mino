@@ -50,6 +50,16 @@ def _twisted_strip(n=9):
     return np.vstack([a, b])
 
 
+def kink_ratio(disp, points):
+    """Each interior vertex's move off the spacing-weighted interpolation of its neighbours' moves,
+    over the bound planarize and relax keep: MAX_KINK x h_l h_r / (h_l + h_r)."""
+    d = np.asarray(disp, dtype=float).reshape(len(points), -1)
+    seg = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    hl, hr = seg[:-1], seg[1:]
+    k = (hr[:, None] * d[:-2] + hl[:, None] * d[2:]) / (hl + hr)[:, None] - d[1:-1]
+    return np.linalg.norm(k, axis=1) / (MAX_KINK * hl * hr / (hl + hr))
+
+
 def test_planarize_bounds_kinks_along_rails():
     # The step (4, 3) -> (4, 4) is a triangle, so B3 and B4 each belong to a single quad and
     # nothing balances that quad's push; given the rails, they stay in line with their neighbours.
@@ -61,10 +71,7 @@ def test_planarize_bounds_kinks_along_rails():
                     max_nudge=1.0, rails=rails)
     assert not np.allclose(out, v)
     for rail in rails:
-        p, d = v[list(rail)], out[list(rail)] - v[list(rail)]
-        seg = np.linalg.norm(np.diff(p, axis=0), axis=1)
-        kink = np.linalg.norm(d[:-2] - 2.0 * d[1:-1] + d[2:], axis=1)
-        assert np.all(kink <= MAX_KINK * 0.5 * (seg[:-1] + seg[1:]) * (1 + 1e-6))
+        assert kink_ratio(out[list(rail)] - v[list(rail)], v[list(rail)]).max() <= 1 + 1e-6
     assert np.linalg.norm(out - v, axis=1).max() <= 1.0 + 1e-9
 
 
