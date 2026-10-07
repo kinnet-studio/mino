@@ -37,7 +37,7 @@ def face_planarity(verts: np.ndarray, faces) -> np.ndarray:
     return np.array([quad_planarity(verts, f) if len(f) == 4 else 0.0 for f in faces], dtype=float)
 
 
-def _local_spacing(points: np.ndarray) -> np.ndarray:
+def local_spacing(points: np.ndarray) -> np.ndarray:
     """Mean length of the rail segments meeting at each vertex (the one segment at the ends)."""
     seg = np.linalg.norm(np.diff(points, axis=0), axis=1)
     h = np.empty(len(points))
@@ -46,10 +46,11 @@ def _local_spacing(points: np.ndarray) -> np.ndarray:
     return h
 
 
-def _limit_kinks(disp, limit, fixed, max_nudge, sweeps=50):
+def limit_kinks(disp, limit, fixed, max_nudge, sweeps=50):
     """Move one rail's displacements so |disp[v-1] - 2 disp[v] + disp[v+1]| <= limit[v] at every free
     vertex v, and |disp[v]| <= max_nudge everywhere.
 
+    disp is (m, k): k = 3 for free 3D moves, k = 1 for distances along fixed directions. In place.
     Each kink is fixed by moving its own vertex toward the midpoint of its neighbours. Kinks of one
     parity move disjoint vertices, so each half-sweep is an exact projection; alternating the halves
     with the nudge cap converges because disp = 0 satisfies every bound.
@@ -97,7 +98,7 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge, rails=()):
     fixed = np.zeros(len(verts), dtype=bool)
     fixed[pinned] = True
     chains = [np.asarray(list(r), dtype=int) for r in rails]
-    limits = [(chain, MAX_KINK * _local_spacing(orig[chain])) for chain in chains if len(chain) >= 3]
+    limits = [(chain, MAX_KINK * local_spacing(orig[chain])) for chain in chains if len(chain) >= 3]
     pl = face_planarity(verts, quads)
     best, best_key = verts, (int((pl > tolerance).sum()), float(pl.sum()))
     for _ in range(iterations):
@@ -127,7 +128,7 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge, rails=()):
         if over.any():
             new[over] = orig[over] + disp[over] * (max_nudge / d[over])[:, None]
         for chain, limit in limits:
-            disp = _limit_kinks(new[chain] - orig[chain], limit, fixed[chain], max_nudge)
+            disp = limit_kinks(new[chain] - orig[chain], limit, fixed[chain], max_nudge)
             new[chain] = orig[chain] + disp
         verts = new
         pl = face_planarity(verts, quads)

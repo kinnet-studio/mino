@@ -27,7 +27,9 @@ rulings `path = [(i, j), ...]` from the current loft, `LoftParams`, and:
 Variables: `δ ∈ R^N`, one scalar per B point, moving `B'[j] = B[j] + δ_j·n_j`
 where `n_j` is the local strip normal at B: `normalize(T_B[j] × R)` with `R`
 the ruling of the first path entry that uses `j`. Bounds `|δ_j| ≤ d` where
-`d = max_move · mean ruling length`; pinned endpoints have `δ = 0`.
+`d = max_move · mean ruling length`; pinned endpoints have `δ = 0`; and
+`|δ_{j−1} − 2δ_j + δ_{j+1}| ≤ MAX_KINK · h_j` with `h_j` the local spacing
+of B, the kink bound planarize keeps (see section 9).
 
 Tangents of `B'` are the supplied tangents plus the central-difference
 change: `T_B'[j] = normalize(T_B[j] + c(B')[j] − c(B)[j])` where `c(P)` is
@@ -51,7 +53,8 @@ gradients (step `1e-4·d`; a gradient costs 2·(N−2) objective evaluations,
 each vectorized O(N)). The step length is the Barzilai-Borwein estimate
 `α = (s·s)/(s·y)` from the previous step `s = δ_new − δ_old` and gradient
 change `y = g_new − g_old` (first step: `d / |g|`; if `s·y ≤ 0` reuse twice
-the last accepted step). Each step is projected onto the bounds and pinned
+the last accepted step). Each step is projected onto the bounds (the kink
+bound by the same alternating projection planarize uses) and pinned
 entries are zeroed, then accepted only if `F` decreased; otherwise the step
 is halved, at most 30 times. The sequence of `F` values is therefore
 monotone. Stop when `F` reaches 0 (every ruling on the path is within
@@ -120,6 +123,7 @@ feature also show it. The button runs `mino.relax` with its defaults.
 Core:
 - Gradient sanity: on a small random δ the finite-difference gradient of the smoothness term matches its analytic gradient `2λ·L δ` (L the 1D chain Laplacian over the N points, pinned rows zeroed) within 1e-6.
 - Bounds and pins: every `|δ_j| ≤ d`, endpoints exactly 0 when pinned.
+- Smooth moves: on the full twisted case at the default `max_move`, every `|δ_{j−1} − 2δ_j + δ_{j+1}|` stays within `MAX_KINK` times the local spacing of B.
 - Cylinder: relaxing a developable strip leaves `B` unchanged within 1e-9 (gradient is zero when no ruling exceeds tolerance) and `twist_after` equals `twist_before` within 1e-3 degrees (resampling round-off); the same holds at `samples = 8`, the operator minimum, where central-difference end tangents alone would invent about 7° of twist.
 - Scale invariance: the mild case scaled by 1000 relaxes to the same twist and the same move fraction as at unit scale.
 - Degenerate rulings count as 90° inside the objective: a hand-built path with one zero-length ruling gives `F = (90 − target)²`.
@@ -167,3 +171,19 @@ used central differences, whose one-sided end formula invents about
 developable Bezier-railed strip and then warned about it. Defining the
 moved tangents as the supplied tangents plus the central-difference change
 keeps both measurements on one convention.
+
+## 9. Kink bound (2026-10-07)
+
+The smoothness term is scaled by the mean ruling length, so a zigzag at
+the sample spacing `h` costs about `(0.1·h/ℓ)²` per point, orders of
+magnitude below the hinge term; it never resisted one. The solver left
+neighbouring moves zigzagging: on the full twisted case at the default
+`max_move`, second differences of `δ` reached 0.49 of the spacing and the
+relaxed rail turned up to 27° more than the original at a point. The moves
+now share planarize's kink bound (`2026-09-03-devloft-poc-design.md`
+section 5.4), applied inside the projection, so the relaxed rail adds at
+most about 6° of bend at any point. Measured against the unbounded solver,
+twist after relaxing: twisted at `max_move` 0.05, 29.6° → 26.2°; at 0.15,
+24.8° → 22.4°; the mild case 4.9° → 4.8°; the ellipse unchanged at 5.9°;
+the offset cylinder worse, 6.2° → 7.7°, because its twist sits at the ends,
+where the unbounded solver bent the last four points sharply.
