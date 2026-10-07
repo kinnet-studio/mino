@@ -28,6 +28,8 @@ class MINO_OT_loft(bpy.types.Operator):
 
     samples: IntProperty(name="Samples", default=60, min=8, max=400,
                          description="Points per rail after resampling")
+    adaptive: FloatProperty(name="Adaptive", default=0.0, min=0.0, max=0.9,
+                            description="Share of samples placed where the rails bend; 0 spaces them evenly")
     window: IntProperty(name="Window", default=8, min=1, max=400,
                         description="How far rulings may lean, in samples")
     twist_tolerance: FloatProperty(name="Twist Tolerance", default=5.0, min=0.0, max=90.0, subtype="NONE",
@@ -39,6 +41,9 @@ class MINO_OT_loft(bpy.types.Operator):
     ])
     tie_weight: FloatProperty(name="Tie Weight", default=0.1, min=0.0, max=10.0)
     plane_normal: FloatVectorProperty(name="Plane Normal", default=(0.0, 0.0, 1.0), subtype="XYZ")
+    quads: BoolProperty(name="Quads", default=True,
+                        description="Give every ruling its own rail points so faces are quads; "
+                                    "quads that cannot be made flat are still split")
     planarize: BoolProperty(name="Planarize", default=True,
                             description="Nudge vertices so near-planar quads become planar")
     planar_tolerance: FloatProperty(name="Planar Tolerance", default=0.01, min=0.0, max=0.5,
@@ -55,14 +60,15 @@ class MINO_OT_loft(bpy.types.Operator):
 
     def execute(self, context):
         params = LoftParams(
-            samples=self.samples, window=self.window, twist_tolerance=self.twist_tolerance,
+            samples=self.samples, adaptive=self.adaptive, window=self.window,
+            twist_tolerance=self.twist_tolerance,
             tie_breaker=self.tie_breaker, tie_weight=self.tie_weight,
             plane_normal=tuple(self.plane_normal), planarize=self.planarize,
             planar_tolerance=self.planar_tolerance, planarize_max_nudge=self.planarize_max_nudge,
-            consistent_creases=self.consistent_creases,
+            consistent_creases=self.consistent_creases, quads=self.quads,
         )
         try:
-            sections = inputs.get_sections(context, params.samples)
+            sections = inputs.get_sections(context, params.samples, params.adaptive)
             results = chain_loft(sections, params)
         except LoftError as exc:
             self.report({"ERROR"}, str(exc))
@@ -102,6 +108,7 @@ class MINO_OT_loft(bpy.types.Operator):
     def draw(self, context):
         col = self.layout.column()
         col.prop(self, "samples")
+        col.prop(self, "adaptive")
         col.prop(self, "window")
         col.prop(self, "twist_tolerance")
         col.prop(self, "tie_breaker")
@@ -109,6 +116,7 @@ class MINO_OT_loft(bpy.types.Operator):
             col.prop(self, "tie_weight")
         if self.tie_breaker == "plane":
             col.prop(self, "plane_normal")
+        col.prop(self, "quads")
         col.prop(self, "planarize")
         col.prop(self, "planar_tolerance")
         col.prop(self, "planarize_max_nudge")
