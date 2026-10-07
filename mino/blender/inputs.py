@@ -45,7 +45,7 @@ def chains_from_edges(coords, edges):
     return chains
 
 
-def _bezier_rail(obj, samples):
+def _bezier_rail(obj, samples, oversample=4):
     from mathutils.geometry import interpolate_bezier
 
     spline = obj.data.splines[0]
@@ -55,7 +55,7 @@ def _bezier_rail(obj, samples):
     nseg = len(bps) - 1
     if nseg < 1:
         raise LoftError(f"'{obj.name}' needs at least 2 control points")
-    res = max(2, math.ceil(samples * 4 / nseg) + 1)
+    res = max(2, math.ceil(samples * oversample / nseg) + 1)
     mw = obj.matrix_world
     rot = mw.to_3x3()
     pts, tans = [], []
@@ -100,13 +100,13 @@ def _evaluated_rail(obj, context):
     return np.array([list(mw @ Vector(coords[i])) for i in chains[0]], float), None
 
 
-def curve_rail(obj, context, samples):
+def curve_rail(obj, context, samples, oversample=4):
     cu = obj.data
     if len(cu.splines) != 1:
         raise LoftError(f"'{obj.name}' has {len(cu.splines)} splines; separate them so each rail has one")
     kind = cu.splines[0].type
     if kind == "BEZIER":
-        return _bezier_rail(obj, samples)
+        return _bezier_rail(obj, samples, oversample)
     if kind == "POLY":
         return _poly_rail(obj)
     return _evaluated_rail(obj, context)
@@ -145,8 +145,12 @@ def order_sections(rails_by_name: dict, first: str) -> list[str]:
     return ordered
 
 
-def get_sections(context, samples):
-    """Two rails from Edit Mode chains, or two or more curves ordered from the active one."""
+def get_sections(context, samples, adaptive=0.0):
+    """Two rails from Edit Mode chains, or two or more curves ordered from the active one.
+
+    With adaptive > 0, Bezier rails are evaluated 16x denser than Samples (4x otherwise) so the
+    clustered samples land on the curve rather than on chords of the evaluated polyline.
+    """
     obj = context.active_object
     if context.mode == "EDIT_MESH" and obj is not None and obj.type == "MESH":
         a, b = edit_mode_rails(obj)
@@ -155,6 +159,7 @@ def get_sections(context, samples):
     if len(curves) < 2:
         raise LoftError(f"select at least two curve objects ({len(curves)} selected), "
                         "or two edge chains in Edit Mode")
-    rails_by_name = {o.name: curve_rail(o, context, samples) for o in curves}
+    oversample = 16 if adaptive > 0 else 4
+    rails_by_name = {o.name: curve_rail(o, context, samples, oversample) for o in curves}
     first = obj.name if obj in curves else curves[0].name
     return [rails_by_name[name] for name in order_sections(rails_by_name, first)]

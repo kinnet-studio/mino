@@ -19,3 +19,4 @@ def test_export_writes_data_js_and_json(tmp_path):
     assert [c["name"] for c in payload] == ["cylinder", "cone", "offset_cylinder", "twisted", "ellipse"]
     cyl = json.loads((tmp_path / "cylinder.json").read_text())
     assert cyl["report"]["failing_ruling_count"] == 0
+    assert len(cyl["ruling_verts"]) == len(cyl["rulings"])

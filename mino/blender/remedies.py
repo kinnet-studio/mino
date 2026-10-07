@@ -18,8 +18,8 @@ from .state import load_diagnosis, load_inputs
 
 OFF_ROW = ("Diagnosis off for this loft", None, {})
 
-PARAM_PROPS = ("samples", "window", "twist_tolerance", "tie_breaker", "tie_weight", "plane_normal",
-               "planarize", "planar_tolerance", "planarize_max_nudge", "consistent_creases")
+PARAM_PROPS = ("samples", "adaptive", "window", "twist_tolerance", "tie_breaker", "tie_weight", "plane_normal",
+               "quads", "planarize", "planar_tolerance", "planarize_max_nudge", "consistent_creases")
 
 
 def effective_params(op, stored):
@@ -83,6 +83,8 @@ class MINO_OT_reloft(_MinoRemedy, bpy.types.Operator):
 
     samples: IntProperty(name="Samples", default=60, min=8, max=400,
                          description="Points per rail after resampling")
+    adaptive: FloatProperty(name="Adaptive", default=0.0, min=0.0, max=0.9,
+                            description="Share of samples placed where the rails bend; 0 spaces them evenly")
     window: IntProperty(name="Window", default=8, min=1, max=400,
                         description="How far rulings may lean, in samples")
     twist_tolerance: FloatProperty(name="Twist Tolerance", default=5.0, min=0.0, max=90.0, subtype="NONE",
@@ -94,6 +96,9 @@ class MINO_OT_reloft(_MinoRemedy, bpy.types.Operator):
     ])
     tie_weight: FloatProperty(name="Tie Weight", default=0.1, min=0.0, max=10.0)
     plane_normal: FloatVectorProperty(name="Plane Normal", default=(0.0, 0.0, 1.0), subtype="XYZ")
+    quads: BoolProperty(name="Quads", default=True,
+                        description="Give every ruling its own rail points so faces are quads; "
+                                    "quads that cannot be made flat are still split")
     planarize: BoolProperty(name="Planarize", default=True,
                             description="Nudge vertices so near-planar quads become planar")
     planar_tolerance: FloatProperty(name="Planar Tolerance", default=0.01, min=0.0, max=0.5,
@@ -198,7 +203,7 @@ class MINO_OT_dart(_MinoRemedy, bpy.types.Operator):
             pa, ta, pb, tb, params = load_inputs(obj)
             diag = load_diagnosis(obj)
             base = loft(pa, pb, params, ta, tb)
-            ra, rb = prepare_rails(pa, pb, params.samples, ta, tb)
+            ra, rb = prepare_rails(pa, pb, params.samples, ta, tb, params.adaptive)
             if self.properties.is_property_set("ruling"):
                 ruling = min(self.ruling, len(base.rulings) - 1)
             elif diag and diag.darts:

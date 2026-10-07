@@ -260,3 +260,14 @@ def test_load_inputs_round_trip(fresh_scene):
     assert params_from_dict({**params_to_dict(params), "bogus": 1}).window == 5
     with pytest.raises(LoftError):
         load_inputs(a)
+
+
+def test_loft_adaptive_densifies_bezier_input_and_stores_params(fresh_scene):
+    a = _make_arc_curve("A", 1.0, 0.0)
+    b = _make_arc_curve("B", 1.0, 1.0)
+    _select([a, b], a)
+    assert bpy.ops.mino.loft(samples=30, adaptive=0.5) == {"FINISHED"}
+    obj = bpy.data.objects["Mino"]
+    assert len(json.loads(obj["mino_rails"])["a"]) >= 30 * 16
+    params = json.loads(obj["mino_params"])
+    assert params["adaptive"] == 0.5 and params["quads"] is True

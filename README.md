@@ -23,10 +23,12 @@ To see the twist colors: Solid shading > Color > Attribute.
 ## Parameters
 
 - Samples: points per rail after resampling.
+- Adaptive: share of samples placed where the rails bend (0 = even spacing). 0.5–0.6 smooths curved outlines several times over for the same Samples; higher values thin samples on straight and gently curving parts. Window still counts samples, so it covers less distance where samples are dense. NURBS rails are read at the curve's own Resolution U, which bounds the detail.
 - Window: how far a ruling may lean, in samples.
 - Twist Tolerance: degrees; rulings above it are flagged and colored.
 - Tie Breaker: none, shortest ruling, or plane direction, with a weight.
 - Plane Normal: the reference plane's normal, used when Tie Breaker is set to plane direction.
+- Quads: give every ruling its own rail points so every face is a quad between two rulings; quads that cannot be made flat are still split into two triangles.
 - Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it. Nudges keep each rail smooth (at most about 6° of added bend at any vertex), so no vertex spikes out of the surface.
 - Planar Tolerance: quads still above it are split into two triangles.
 - Max Nudge: cap on vertex movement during planarize, as a fraction of the mean ruling length.

@@ -149,10 +149,11 @@
     layers.wire = new THREE.LineSegments(wgeom, new THREE.LineBasicMaterial({ color: 0x111111 }));
 
     const n = c.params.samples;
+    const rulingVerts = c.ruling_verts || c.rulings.map(([i, j]) => [i, n + j]);
     const rp = [], rc = [];
-    c.rulings.forEach(([i, j], k) => {
+    rulingVerts.forEach(([a, b], k) => {
       const rgb = colorFor(c.ruling_twist[k], tol);
-      rp.push(...toThree(c.verts[i]), ...toThree(c.verts[n + j]));
+      rp.push(...toThree(c.verts[a]), ...toThree(c.verts[b]));
       rc.push(...rgb, ...rgb);
     });
     const rgeom = new THREE.BufferGeometry();

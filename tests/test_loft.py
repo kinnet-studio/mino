@@ -1,13 +1,14 @@
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
 
 from mino.core import LoftError, LoftParams, loft
 from mino.core.export import result_to_dict
-from mino.core.mesh import MAX_KINK
 from mino.core.rails import prepare_rails
 from tests.cases import CASES, OFFSET_STEPS
+from tests.test_mesh import kink_ratio
 
 
 def _run(name, **overrides):
@@ -110,20 +111,17 @@ def test_planarize_never_adds_splits(samples):
 
 
 def _rail_kinks(verts, rail_points):
-    """Second difference of the planarize displacement along a rail, over the local sample spacing."""
-    d = verts - rail_points
-    seg = np.linalg.norm(np.diff(rail_points, axis=0), axis=1)
-    return np.linalg.norm(d[:-2] - 2.0 * d[1:-1] + d[2:], axis=1) / (0.5 * (seg[:-1] + seg[1:]))
+    return kink_ratio(verts - rail_points, rail_points)
 
 
 @pytest.mark.parametrize("overrides", [{}, {"planarize_max_nudge": 0.2, "planarize_iterations": 50}])
 def test_planarize_keeps_rails_smooth(overrides):
     # B52 and B53 each sit in a single quad next to a triangle, so nothing balances that quad's push.
-    case, params, res = _run("twisted", **overrides)
+    case, params, res = _run("twisted", quads=False, **overrides)
     n = params.samples
     ra, rb = prepare_rails(case["points_a"], case["points_b"], n, case["tangents_a"], case["tangents_b"])
-    assert _rail_kinks(res.verts[:n], ra.points).max() <= MAX_KINK + 1e-9
-    assert _rail_kinks(res.verts[n:], rb.points).max() <= MAX_KINK + 1e-9
+    assert _rail_kinks(res.verts[:n], ra.points).max() <= 1 + 1e-6
+    assert _rail_kinks(res.verts[n:], rb.points).max() <= 1 + 1e-6
 
 
 def test_tie_breakers_run():
@@ -149,6 +147,7 @@ def test_result_to_dict_is_json_serializable():
     assert back["report"]["ruling_count"] == len(res.rulings)
     assert back["params"]["samples"] == 12
     assert len(back["rails"]["a"]) == len(case["points_a"])
+    assert back["ruling_verts"] == [list(p) for p in res.ruling_verts]
 
 
 def test_consistent_creases_on_twisted_strip():
@@ -172,3 +171,83 @@ def test_consistent_creases_on_twisted_strip():
     assert orientations
     for r in orientations:
         assert len(set(r)) == 1
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_adaptive_loft_runs_on_every_case(name):
+    _, params, res = _run(name, adaptive=0.6)
+    assert np.isfinite(res.verts).all()
+    assert res.report.ruling_count == len(res.rulings)
+    if name in ("cylinder", "cone"):
+        assert res.ruling_twist.max() < 0.01 and res.failing_ranges == []
+
+
+@pytest.mark.parametrize("name", ["ellipse", "offset_cylinder"])
+def test_quads_replace_fan_triangles(name):
+    quad, grid = _run(name)[2], _run(name, quads=False)[2]
+    assert all(len(f) == 4 for f in quad.faces) and not quad.face_split.any()
+    assert quad.report.max_twist == pytest.approx(grid.report.max_twist, rel=1e-9)
+
+
+def test_quads_on_twisted_leave_only_split_triangles():
+    res = _run("twisted")[2]
+    assert all(len(f) == 4 or res.face_split[k] for k, f in enumerate(res.faces))
+
+
+@pytest.mark.parametrize("name", ["cylinder", "cone"])
+def test_quads_match_the_grid_without_fans(name):
+    quad, grid = _run(name)[2], _run(name, quads=False)[2]
+    assert np.array_equal(quad.verts, grid.verts) and quad.faces == grid.faces
+
+
+@pytest.mark.parametrize("name, overrides", [("cylinder", {}), ("cone", {}), ("ellipse", {"window": 8}),
+                                             ("offset_cylinder", {})])
+def test_quads_unfold_to_the_same_area(name, overrides):
+    # the ellipse is developable only once rulings may lean 8 samples; at its default 2 it is not
+    res = _run(name, **overrides)[2]
+    assert res.report.area_unfolded == pytest.approx(res.report.area_3d, rel=1e-3)
+
+
+@pytest.mark.parametrize("quads", [True, False])
+def test_ruling_verts_pair_each_ruling(quads):
+    _, params, res = _run("ellipse", quads=quads)
+    m = len(res.verts) // 2
+    expected = ([(k, m + k) for k in range(len(res.rulings))] if quads
+                else [(i, params.samples + j) for i, j in res.rulings])
+    assert res.ruling_verts == expected
+
+
+def _bend(p):
+    """Bend angle in degrees at each interior vertex of a polyline."""
+    u, v = np.diff(p, axis=0)[:-1], np.diff(p, axis=0)[1:]
+    cos = np.einsum("ij,ij->i", u, v) / (np.linalg.norm(u, axis=1) * np.linalg.norm(v, axis=1))
+    return np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))
+
+
+def _added_bend(on, off):
+    m = len(on.verts) // 2
+    return max((_bend(on.verts[r]) - _bend(off.verts[r])).max() for r in (slice(0, m), slice(m, 2 * m)))
+
+
+def _end_fans(e, s, n=400):
+    """B overhangs A by e at both ends, so rulings fan at the strip's corners, and B rolls (non-planar)."""
+    t = np.linspace(0.0, 4.0, n)
+    phi = s * (t / 4) ** 2
+    a = np.column_stack([t, np.zeros(n), np.zeros(n)])
+    b = np.column_stack([-e + t * (4 + 2 * e) / 4, np.sin(phi), np.cos(phi)])
+    return a, b
+
+
+@pytest.mark.parametrize("iterations", [10, 50])
+@pytest.mark.parametrize("e, s", [(e, s) for e in (0.3, 0.6, 1.0) for s in (1.2, 2.0, 3.0)])
+def test_planarize_adds_little_bend_at_end_fans(e, s, iterations):
+    # README: nudges add at most about 6 degrees of bend at any rail vertex, also where fans pack vertices
+    a, b = _end_fans(e, s)
+    params = LoftParams(samples=60, window=30, planarize_iterations=iterations)
+    on, off = loft(a, b, params), loft(a, b, replace(params, planarize=False))
+    assert _added_bend(on, off) <= 6.0
+
+
+@pytest.mark.parametrize("quads", [True, False])
+def test_planarize_adds_little_bend_on_twisted(quads):
+    assert _added_bend(_run("twisted", quads=quads)[2], _run("twisted", quads=quads, planarize=False)[2]) <= 6.0

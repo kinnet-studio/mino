@@ -14,6 +14,7 @@ class Rail:
 @dataclass
 class LoftParams:
     samples: int = 60
+    adaptive: float = 0.0  # share of samples placed by rail bending; 0 = even spacing
     window: int = 8
     twist_tolerance: float = 5.0
     tie_breaker: str = "none"  # "none" | "shortest" | "plane"
@@ -24,6 +25,7 @@ class LoftParams:
     planarize_iterations: int = 10
     planarize_max_nudge: float = 0.05
     consistent_creases: bool = True
+    quads: bool = True  # every face a quad between consecutive rulings; fans are spread
 
 
 @dataclass
@@ -51,3 +53,4 @@ class StripResult:
     failing_ranges: list
     report: Report
     layout: list = field(default_factory=list)
+    ruling_verts: list = field(default_factory=list)  # (vertex on A, vertex on B) per ruling

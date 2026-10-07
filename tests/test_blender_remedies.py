@@ -144,3 +144,39 @@ def test_remedies_require_a_mino_object(fresh_scene):
     assert not bpy.ops.mino.subdivide.poll()
     assert not bpy.ops.mino.dart.poll()
     assert not bpy.ops.mino.reloft.poll()
+
+
+def _ellipse_loft(**props):
+    case = CASES["ellipse"]()
+    a = _make_poly_curve("A", case["points_a"])
+    b = _make_poly_curve("B", case["points_b"])
+    _select([a, b], a)
+    assert bpy.ops.mino.loft(samples=60, window=2, **props) == {"FINISHED"}
+    return bpy.data.objects["Mino"]
+
+
+def test_quads_loft_has_only_quads(fresh_scene):
+    obj = _ellipse_loft()
+    assert all(len(p.vertices) == 4 for p in obj.data.polygons)
+
+
+def test_grid_loft_keeps_fan_triangles(fresh_scene):
+    obj = _ellipse_loft(quads=False)
+    assert any(len(p.vertices) == 3 for p in obj.data.polygons)
+
+
+def test_reloft_overrides_adaptive_and_quads(fresh_scene):
+    _twisted_loft()
+    assert bpy.ops.mino.reloft(adaptive=0.5, quads=False) == {"FINISHED"}
+    params = json.loads(bpy.data.objects["Mino.reloft"]["mino_params"])
+    assert params["adaptive"] == 0.5 and params["quads"] is False
+
+
+def test_reloft_of_a_result_stored_without_new_params(fresh_scene):
+    obj = _twisted_loft()
+    stored = json.loads(obj["mino_params"])
+    del stored["adaptive"], stored["quads"]
+    obj["mino_params"] = json.dumps(stored)
+    assert bpy.ops.mino.reloft() == {"FINISHED"}
+    params = json.loads(bpy.data.objects["Mino.reloft"]["mino_params"])
+    assert params["adaptive"] == 0.0 and params["quads"] is True

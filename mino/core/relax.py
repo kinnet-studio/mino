@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from . import loft
-from .mesh import MAX_KINK, limit_kinks, local_spacing
+from .mesh import limit_kinks
 from .rails import central_difference, normalize_rows, prepare_rails
 from .twist import paired_twist
 from .types import LoftParams, Rail, StripResult
@@ -93,14 +93,14 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
                  max_seconds: float = 0.0, progress=None) -> RelaxResult:
     """Move rail B along the strip normal, bounded by max_move x mean ruling, to reduce twist.
 
-    Rail B also stays smooth: the moves' second differences stay within MAX_KINK x the local
-    sample spacing, the bound planarize keeps, so neighbouring points cannot zigzag.
+    Rail B also stays smooth: the moves add at most about 6 degrees of bend at any point (MAX_KINK,
+    weighted by spacing), the bound planarize keeps, so neighbouring points cannot zigzag.
     max_seconds > 0 stops the loop once that wall-clock budget is spent (0 means no limit);
     progress(step, iterations) is called after every accepted step.
     """
     params = params or LoftParams()
     base = loft(points_a, points_b, params, tangents_a, tangents_b)
-    rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b)
+    rail_a, rail_b = prepare_rails(points_a, points_b, params.samples, tangents_a, tangents_b, params.adaptive)
     path = np.asarray(base.rulings, dtype=int)
     n = len(rail_b.points)
 
@@ -115,7 +115,6 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
         free[0] = free[-1] = False
 
     length_scale = mean_ruling if mean_ruling > 0 else 1.0
-    kink_limit = MAX_KINK * local_spacing(rail_b.points)
 
     def objective(d):
         return relax_objective(d, rail_a, rail_b, normals, path, target, smoothness,
@@ -124,7 +123,7 @@ def relax_rail_b(points_a, points_b, tangents_a, tangents_b, params: LoftParams 
     def project(d):
         d = np.clip(d, -bound, bound)
         d[~free] = 0.0
-        return limit_kinks(d[:, None], kink_limit, ~free, bound)[:, 0]
+        return limit_kinks(d[:, None], rail_b.points, ~free, bound)[:, 0]
 
     delta = np.zeros(n)
     history = [objective(delta)]
