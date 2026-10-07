@@ -1,7 +1,7 @@
 # Mino: adaptive sampling and quad strips. Design
 
 Date: 2026-10-07
-Status: approved design, pre-implementation.
+Status: approved design, pre-implementation. Amended 2026-10-07 after calibrating tangents and outline error (section 3.7): tangents keep today's formula, so `Rail` and relaxation are unchanged.
 Builds on: the PoC spec (`2026-09-03-devloft-poc-design.md`) for the loft pipeline, and spec 1 (`2026-09-03-mino-diagnosis-and-remedies-design.md`) for stored inputs and remedies.
 
 ## 1. Goal
@@ -86,21 +86,14 @@ bend. `shared_positions(points_a, points_b, samples, adaptive) -> (N,)`.
 
 - `resample(points, samples, tangents=None, positions=None)`: with
   `positions` (normalized, strictly increasing) the targets are
-  `positions · L`; without, today's code path runs unchanged.
-- `central_difference(points, s=None)`: with parameter values `s`, the
-  three-point formulas for uneven spacing, `h1 = s_i − s_{i−1}`,
-  `h2 = s_{i+1} − s_i`:
-  - interior: `f'_i ≈ −h2/(h1(h1+h2))·f_{i−1} + (h2−h1)/(h1·h2)·f_i + h1/(h2(h1+h2))·f_{i+1}`
-  - start (`h1 = s_1−s_0`, `h2 = s_2−s_1`): `−(2h1+h2)/(h1(h1+h2))·f_0 + (h1+h2)/(h1·h2)·f_1 − h1/(h2(h1+h2))·f_2`
-  - end: the mirror image.
-
-  These are exact for quadratics and reduce to today's direction for even
-  spacing. Without `s`, today's code runs unchanged. Two points fall back
-  to the chord either way.
-- `Rail` gains `s: np.ndarray | None = None`, the arc-length targets when
-  positions were given. `relax.moved_tangents_b` passes `rail_b.s` to both
-  of its central differences, so relaxation measures tangents the way the
-  loft does.
+  `positions · L`; without, today's code path runs unchanged. Supplied
+  tangents are interpolated at the targets as today.
+- Tangents computed from the samples keep today's `central_difference`
+  (neighbour chord inside, three-point one-sided at the ends) in both
+  modes. A three-point formula that accounts for uneven spacing was
+  measured and rejected (3.7): it overshoots wherever spacing jumps, which
+  adaptive spacing does at every bend-to-straight transition. `Rail` and
+  `relax.moved_tangents_b` are therefore unchanged.
 - `prepare_rails(points_a, points_b, samples, tangents_a=None, tangents_b=None, adaptive=0.0)`:
   after orienting B, if `adaptive > 0` it computes shared positions on the
   deduplicated rails and resamples both with them.
@@ -123,6 +116,28 @@ Resolution U still bounds the detail (README).
 Window stays in samples. With adaptive spacing, the same Window covers
 less distance where samples are dense. Documented in the README; no
 behavioural change.
+
+### 3.7 Evidence (throwaway calibration)
+
+Dense test curves resampled with the shared positions of 3.3, rail B a
+translated copy. Outline error is the largest distance from the true curve
+to the resampled polyline; tangent error the largest angle between a
+computed and the true tangent.
+
+| curve, Samples | outline error w=0 / 0.6 / 0.9 | tangent error w=0.6: chord / uneven three-point |
+|---|---|---|
+| ellipse 3:1, 30 | 0.0048 / 0.0008 / 0.0019 | 0.17° / 0.12° |
+| sine (2 periods), 30 | 0.0335 / 0.0147 / 0.0259 | 1.65° / 4.29° |
+| quarter arc + straight, 30 | 0.0031 / 0.0007 / 0.0004 | 0.76° / 1.32° |
+| quarter arc + straight, 16 | 0.0116 / 0.0025 / 0.0016 | 0.25° / 3.32° |
+| tanh step, 60 | 0.0021 / 0.0002 / 0.0004 | 0.74° / 0.79° |
+
+Adaptive 0.6 cuts outline error 2–10× on every curve; 0.9 over-concentrates
+samples on some (sine, ellipse) and is worse than 0.6 there, so the README
+suggests 0.5–0.6. On the sine, w=0.9 thins the samples at the inflections
+enough that the tangent error there exceeds even spacing's (9.34° vs 7.97°
+at 16 samples, 1.48° vs 0.58° at 60), while w=0.6 stays at or below it
+(4.85° and 0.57°); the README notes this.
 
 ## 4. Quad strips (`mino/core/quads.py`, new)
 
@@ -225,8 +240,9 @@ planarity gain and moves every vertex off its sample.
   sample cases.
 - The dart (gusset) mesh is unchanged: it builds its own refined grid from
   `result.rulings`.
-- README: Adaptive and Quads in Parameters; the Window note (3.6); NURBS
-  Resolution U (3.5).
+- README: Adaptive and Quads in Parameters, suggesting 0.5–0.6 and noting
+  that high values thin samples on straight and gently curving parts
+  (3.7); the Window note (3.6); NURBS Resolution U (3.5).
 
 ## 6. Errors
 
@@ -237,12 +253,13 @@ planarity gain and moves every vertex off its sample.
 ## 7. Testing (pytest, written first)
 
 Rails:
-- `adaptive=0` gives bit-identical rails to today (points, tangents) on every case.
-- An L-shaped POLY rail with `adaptive=0.6`: the samples nearest the corner are closer together than even spacing; all samples distinct and strictly increasing in arc length.
+- `adaptive=0` takes today's code path (no positions passed), so existing rail tests stand unchanged.
+- An L-shaped POLY rail with `adaptive=0.6`: the samples nearest the corner are closer together than even spacing; all samples distinct.
 - Straight rails with `adaptive=0.6` stay evenly spaced.
-- A and B get the same normalized positions.
-- An arc joined to a straight segment: the largest distance from the resampled polyline to the true curve is smaller with `adaptive=0.6` than with 0.
-- `central_difference(points, s)` is exact on a parabola with uneven `s`, and matches today's directions for even `s`.
+- `shared_positions` gives one array for both rails, from 0 to 1, strictly increasing, and its spacing follows the rail that bends when the other is straight.
+- `resample` with positions puts samples at those fractions of the length.
+- A quarter arc joined to a straight segment, 16 samples: outline error with `adaptive=0.6` is below half the even-spacing error (measured 0.0025 vs 0.0116).
+- The same rail without supplied tangents, 30 samples, `adaptive=0.6`: tangents within 1° of the true ones (measured 0.76°).
 - `adaptive` of −0.1 and 1.0 raise `LoftError`.
 
 Quads:
