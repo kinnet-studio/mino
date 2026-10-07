@@ -194,3 +194,40 @@ def test_adaptive_on_a_collapsed_rail_raises_cleanly():
         warnings.simplefilter("error")
         with pytest.raises(LoftError, match="2 distinct points"):
             prepare_rails(np.zeros((4, 3)), line, 10, adaptive=0.5)
+
+
+def _placed(p):
+    """Off-axis placement, like a rotated and moved Blender object."""
+    a, b, c = 0.3, 0.7, 1.1
+    rx = np.array([[1, 0, 0], [0, np.cos(a), -np.sin(a)], [0, np.sin(a), np.cos(a)]])
+    ry = np.array([[np.cos(b), 0, np.sin(b)], [0, 1, 0], [-np.sin(b), 0, np.cos(b)]])
+    rz = np.array([[np.cos(c), -np.sin(c), 0], [np.sin(c), np.cos(c), 0], [0, 0, 1]])
+    return p @ (rz @ ry @ rx).T + [1.3, -0.4, 2.2]
+
+
+def _float32(p):
+    """Round through float32, as Blender evaluates curves."""
+    return np.asarray(p, np.float32).astype(float)
+
+
+def _dense_line(z=0.0, length=2.0, offset=0.0):
+    s = np.linspace(0.0, length, 6401)
+    return _placed(np.column_stack([s, np.zeros_like(s), np.full_like(s, z)])) + offset
+
+
+@pytest.mark.parametrize("length, offset", [(2.0, 0.0), (0.2, 100.0)])  # near the origin; short and far out
+def test_float32_straight_rails_stay_evenly_spaced(length, offset):
+    a = _float32(_dense_line(0.0, length, offset))
+    b = _float32(_dense_line(0.1 * length, length, offset))
+    assert np.allclose(shared_positions(a, b, 400, 0.6), np.linspace(0, 1, 400), atol=1e-12)
+
+
+@pytest.mark.parametrize("samples", [60, 400])
+def test_float32_rounding_barely_moves_adaptive_samples(samples):
+    th = np.linspace(0.0, 0.49, 6401)
+    bow = _placed(np.column_stack([4 * np.sin(th), 4 * (1 - np.cos(th)), np.zeros_like(th)]))
+    line = _dense_line(1.0)
+    exact = shared_positions(bow, line, samples, 0.6)
+    rounded = shared_positions(_float32(bow), _float32(line), samples, 0.6)
+    assert np.abs(rounded - exact).max() * (samples - 1) < 0.25
+

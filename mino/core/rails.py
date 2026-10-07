@@ -6,6 +6,10 @@ import numpy as np
 from .errors import LoftError
 from .types import Rail
 
+FLOAT32_EPS = 2.0 ** -23  # relative precision of the float32 coordinates Blender evaluates curves in
+BEND_NOISE = 0.01         # radians of summed rounding noise the bending measure may pick up
+STRAIGHT_TURNING = 0.05   # radians of summed turning below which both rails count as straight
+
 
 def normalize_rows(v: np.ndarray) -> np.ndarray:
     v = np.asarray(v, dtype=float)
@@ -55,17 +59,38 @@ def bend_profile(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return knots, theta
 
 
-def shared_positions(points_a, points_b, samples: int, adaptive: float) -> np.ndarray:
-    """Normalized positions for both rails: a share `adaptive` follows their summed bending."""
-    pa = np.asarray(points_a, dtype=float).reshape(-1, 3)
-    pb = np.asarray(points_b, dtype=float).reshape(-1, 3)
-    pa, pb = pa[dedupe_indices(pa)], pb[dedupe_indices(pb)]
-    if len(pa) < 2 or len(pb) < 2:
+def bend_points(points: np.ndarray, samples: int) -> int:
+    """How many evenly spaced points to measure a deduplicated rail's bending on.
+
+    Four per sample resolves where bends start and end. Coordinates rounded to float32 read as
+    about FLOAT32_EPS x scale / s of turning per vertex at spacing s, which sums to
+    FLOAT32_EPS x scale x length / s^2 along the rail (radians of it on a straight Bezier rail at
+    16x density); the spacing stays coarse enough that this is at most BEND_NOISE.
+    """
+    length = float(np.linalg.norm(np.diff(points, axis=0), axis=1).sum())
+    scale = float(np.abs(points).max())
+    noise_cap = np.sqrt(length * BEND_NOISE / (FLOAT32_EPS * scale))
+    return int(min(max(noise_cap, 16), 4 * samples))
+
+
+def _rail_bend(points, samples: int) -> tuple[np.ndarray, np.ndarray]:
+    pts = np.asarray(points, dtype=float).reshape(-1, 3)
+    pts = pts[dedupe_indices(pts)]
+    if len(pts) < 2:
         raise LoftError("a rail needs at least 2 distinct points")
-    ta, va = bend_profile(pa)
-    tb, vb = bend_profile(pb)
+    return bend_profile(resample(pts, bend_points(pts, samples)).points)
+
+
+def shared_positions(points_a, points_b, samples: int, adaptive: float) -> np.ndarray:
+    """Normalized positions for both rails: a share `adaptive` follows their summed bending.
+
+    Bending is measured on each rail resampled evenly to bend_points(...) points, so rounding in
+    the input is not mistaken for bending; below STRAIGHT_TURNING in all the rails count as straight.
+    """
+    ta, va = _rail_bend(points_a, samples)
+    tb, vb = _rail_bend(points_b, samples)
     total = va[-1] + vb[-1]
-    if total < 1e-9:
+    if total < STRAIGHT_TURNING:
         return np.linspace(0.0, 1.0, samples)
     t = np.union1d(ta, tb)
     u = (1.0 - adaptive) * t + adaptive * (np.interp(t, ta, va) + np.interp(t, tb, vb)) / total
