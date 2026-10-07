@@ -27,7 +27,7 @@ To see the twist colors: Solid shading > Color > Attribute.
 - Twist Tolerance: degrees; rulings above it are flagged and colored.
 - Tie Breaker: none, shortest ruling, or plane direction, with a weight.
 - Plane Normal: the reference plane's normal, used when Tie Breaker is set to plane direction.
-- Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it.
+- Planarize: nudge vertices (at most Max Nudge × mean ruling length) so near-planar quads become planar where the rails allow it. Nudges keep each rail smooth (at most about 6° of added bend at any vertex), so no vertex spikes out of the surface.
 - Planar Tolerance: quads still above it are split into two triangles.
 - Max Nudge: cap on vertex movement during planarize, as a fraction of the mean ruling length.
 - Consistent Creases: use one crease direction per run of split quads.

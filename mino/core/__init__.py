@@ -40,7 +40,8 @@ def loft(points_a, points_b, params: LoftParams | None = None,
             pinned += list(range(n, 2 * n))
         verts = planarize(verts, faces, pinned=pinned,
                           tolerance=params.planar_tolerance,
-                          iterations=params.planarize_iterations, max_nudge=max_nudge)
+                          iterations=params.planarize_iterations, max_nudge=max_nudge,
+                          rails=(range(0, n), range(n, 2 * n)))
 
     planarity = face_planarity(verts, faces)
     out_faces, src, split = split_quads(verts, faces, planarity, params.planar_tolerance,

@@ -1,7 +1,7 @@
 import numpy as np
 
-from mino.core.mesh import (best_diagonal, build_faces, face_planarity, mesh_area, planarize,
-                               quad_planarity, split_quads)
+from mino.core.mesh import (MAX_KINK, best_diagonal, build_faces, face_planarity, mesh_area, planarize,
+                            quad_planarity, split_quads)
 
 
 def test_build_faces_quads_and_triangles():
@@ -40,6 +40,43 @@ def test_planarize_caps_nudge():
     v = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0.2], [0, 1, 0]], float)
     out = planarize(v, [(0, 1, 2, 3)], pinned=[], tolerance=1e-6, iterations=20, max_nudge=0.01)
     assert np.linalg.norm(out - v, axis=1).max() <= 0.01 + 1e-9
+
+
+def _twisted_strip(n=9):
+    t = np.linspace(0.0, 4.0, n)
+    phi = 0.8 * (t / 4.0) ** 2
+    a = np.column_stack([t, np.zeros(n), np.zeros(n)])
+    b = np.column_stack([t, np.sin(phi), np.cos(phi)])
+    return np.vstack([a, b])
+
+
+def test_planarize_bounds_kinks_along_rails():
+    # The step (4, 3) -> (4, 4) is a triangle, so B3 and B4 each belong to a single quad and
+    # nothing balances that quad's push; given the rails, they stay in line with their neighbours.
+    n = 9
+    v = _twisted_strip(n)
+    faces = build_faces([(0, 0), (1, 1), (2, 2), (3, 2), (4, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8)], n)
+    rails = (range(0, n), range(n, 2 * n))
+    out = planarize(v, faces, pinned=[0, n - 1, n, 2 * n - 1], tolerance=1e-9, iterations=50,
+                    max_nudge=1.0, rails=rails)
+    assert not np.allclose(out, v)
+    for rail in rails:
+        p, d = v[list(rail)], out[list(rail)] - v[list(rail)]
+        seg = np.linalg.norm(np.diff(p, axis=0), axis=1)
+        kink = np.linalg.norm(d[:-2] - 2.0 * d[1:-1] + d[2:], axis=1)
+        assert np.all(kink <= MAX_KINK * 0.5 * (seg[:-1] + seg[1:]) * (1 + 1e-6))
+    assert np.linalg.norm(out - v, axis=1).max() <= 1.0 + 1e-9
+
+
+def test_planarize_kink_bound_respects_pins_and_cap():
+    n = 9
+    v = _twisted_strip(n)
+    faces = build_faces([(i, i) for i in range(n)], n)
+    pinned = [0, n - 1] + list(range(n, 2 * n))
+    out = planarize(v, faces, pinned=pinned, tolerance=1e-9, iterations=50, max_nudge=0.02,
+                    rails=(range(0, n), range(n, 2 * n)))
+    assert np.allclose(out[n:], v[n:])
+    assert np.linalg.norm(out - v, axis=1).max() <= 0.02 + 1e-9
 
 
 def test_split_quads_over_tolerance():
