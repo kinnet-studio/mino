@@ -23,6 +23,7 @@ def result_to_dict(result, points_a, points_b, name, params) -> dict:
         "verts": np.asarray(result.verts, dtype=float).tolist(),
         "faces": [list(map(int, f)) for f in result.faces],
         "rulings": [[int(i), int(j)] for i, j in result.rulings],
+        "ruling_verts": [[int(a), int(b)] for a, b in result.ruling_verts],
         "ruling_twist": _finite_list(result.ruling_twist),
         "face_twist": _finite_list(result.face_twist),
         "face_planarity": _finite_list(result.face_planarity),

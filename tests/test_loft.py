@@ -149,6 +149,7 @@ def test_result_to_dict_is_json_serializable():
     assert back["report"]["ruling_count"] == len(res.rulings)
     assert back["params"]["samples"] == 12
     assert len(back["rails"]["a"]) == len(case["points_a"])
+    assert back["ruling_verts"] == [list(p) for p in res.ruling_verts]
 
 
 def test_consistent_creases_on_twisted_strip():
