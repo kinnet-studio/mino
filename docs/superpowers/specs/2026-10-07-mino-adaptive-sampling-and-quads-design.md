@@ -1,7 +1,7 @@
 # Mino: adaptive sampling and quad strips. Design
 
 Date: 2026-10-07
-Status: approved design, pre-implementation. Amended 2026-10-07 after calibrating tangents and outline error (section 3.7): tangents keep today's formula, so `Rail` and relaxation are unchanged.
+Status: approved design, pre-implementation. Amended 2026-10-07 after calibrating tangents and outline error (section 3.7): tangents keep today's formula, so `Rail` and relaxation are unchanged. Amended again after the final branch review (section 8).
 Builds on: the PoC spec (`2026-09-03-devloft-poc-design.md`) for the loft pipeline, and spec 1 (`2026-09-03-mino-diagnosis-and-remedies-design.md`) for stored inputs and remedies.
 
 ## 1. Goal
@@ -277,3 +277,40 @@ Quads:
 Export and Blender:
 - `result_to_dict` carries `ruling_verts`; the regenerated viewer cases load.
 - Blender tests (run when `bpy` is importable): the loft and Re-loft operators accept `adaptive` and `quads`; a quads loft of two arcs gives a mesh with only quads.
+
+## 8. Amendments after the final branch review
+
+### 8.1 Bending is measured on thinned rails
+
+Blender evaluates curves in float32. Summing |turning| over a dense input
+reads that rounding as bending: on a straight Bezier rail at 400 samples
+and 16x density, 3.48 rad; on a 0.49 rad bow, 2.43 rad. Adaptive then
+spaced straight rails unevenly and, at high Samples, followed noise.
+
+`shared_positions` now measures each rail's bending (3.2) on the rail
+resampled evenly to `bend_points(points, samples)` points:
+`min(max(noise_cap, 16), 4 · samples)`, where
+`noise_cap = sqrt(length · BEND_NOISE / (FLOAT32_EPS · scale))`,
+`scale` is the largest absolute coordinate, `FLOAT32_EPS = 2^-23` and
+`BEND_NOISE = 0.01` rad. Rounding of size `eps · scale` reads as about
+`eps · scale / s` of turning per vertex at spacing `s`, summing to
+`eps · scale · length / s²`; the cap keeps that within `BEND_NOISE`. Four
+points per sample keep the outline gain at low Samples (one per sample
+lost most of it: 0.0082 vs 0.0116 even at 16 samples). Rails whose summed
+turning is below `STRAIGHT_TURNING = 0.05` rad count as straight (even
+spacing). Measured with float32-rounded input: samples move at most 0.11
+of a spacing, gaps by at most 1.3%, and straight rails read at most
+0.007 rad. The 16x Bezier evaluation (3.5) stays.
+
+### 8.2 The planarize bend limit is weighted by spacing
+
+The kink bound (`MAX_KINK`) limited the second difference of the moves by
+index, which bounds the bend angle only for even spacing. Quad rails pack
+vertices inside fans, and planarize added up to 41.8 degrees of bend there.
+`limit_kinks(disp, points, fixed, max_nudge)` now keeps each free vertex's
+move within `MAX_KINK · h_l h_r / (h_l + h_r)` of the spacing-weighted
+interpolation `(h_r d[v−1] + h_l d[v+1]) / (h_l + h_r)` of its neighbours'
+moves. With even spacing this is exactly the old bound. Relaxation uses the
+same function. Worst added bend over the end-fan sweep: 5.76 degrees;
+splits unchanged (606 vs 605).
+
