@@ -101,6 +101,14 @@ def test_planarize_reduces_splits_on_coarse_ellipse():
     assert moved.max() <= 0.05 * mean_ruling + 1e-9
 
 
+@pytest.mark.parametrize("samples", [10, 12, 16])
+def test_planarize_never_adds_splits(samples):
+    # On a coarse twisted strip, nudges that flatten one quad can tip a neighbour over tolerance.
+    off = _run("twisted", samples=samples, planarize=False)[2]
+    on = _run("twisted", samples=samples)[2]
+    assert on.report.split_quad_count <= off.report.split_quad_count
+
+
 def _rail_kinks(verts, rail_points):
     """Second difference of the planarize displacement along a rail, over the local sample spacing."""
     d = verts - rail_points

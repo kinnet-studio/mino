@@ -182,7 +182,10 @@ to a triangle from a non-diagonal step) gets that quad's whole correction
 every round, with no second quad to balance it, and spikes out of the
 surface until the cap stops it.
 The pass stops early when the max planarity is below `planar_tolerance`. On a
-genuinely twisted strip it cannot flatten every quad; it is best effort.
+genuinely twisted strip it cannot flatten every quad; it is best effort. It
+returns the best round seen, the input included: fewest quads over
+`planar_tolerance`, then lowest total planarity, so flattening one quad
+never costs a split elsewhere.
 
 After planarization, any quad still above `planar_tolerance` is split into
 two triangles along the diagonal with the smaller dihedral angle between

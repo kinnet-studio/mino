@@ -84,6 +84,9 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge, rails=()):
     move bends the rail by at most MAX_KINK x the local sample spacing. Without this, a vertex in a
     single quad (next to a triangle) takes that quad's whole correction on every iteration and
     spikes out of the surface until max_nudge stops it.
+
+    Returns the iterate (the input included) with the fewest quads over tolerance, then the lowest
+    total planarity, so flattening one quad never buys a split elsewhere.
     """
     verts = np.asarray(verts, dtype=float).copy()
     orig = verts.copy()
@@ -95,8 +98,9 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge, rails=()):
     fixed[pinned] = True
     chains = [np.asarray(list(r), dtype=int) for r in rails]
     limits = [(chain, MAX_KINK * _local_spacing(orig[chain])) for chain in chains if len(chain) >= 3]
+    pl = face_planarity(verts, quads)
+    best, best_key = verts, (int((pl > tolerance).sum()), float(pl.sum()))
     for _ in range(iterations):
-        pl = face_planarity(verts, quads)
         if len(pl) == 0 or pl.max() <= tolerance:
             break
         acc = np.zeros_like(verts)
@@ -126,7 +130,11 @@ def planarize(verts, faces, pinned, tolerance, iterations, max_nudge, rails=()):
             disp = _limit_kinks(new[chain] - orig[chain], limit, fixed[chain], max_nudge)
             new[chain] = orig[chain] + disp
         verts = new
-    return verts
+        pl = face_planarity(verts, quads)
+        key = (int((pl > tolerance).sum()), float(pl.sum()))
+        if key < best_key:
+            best, best_key = verts, key
+    return best
 
 
 def _tri_normal(verts, tri):
